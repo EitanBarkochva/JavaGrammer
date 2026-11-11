@@ -1,6 +1,8 @@
 (function () {
   'use strict';
   var EXAMS = window.EXAMS || [];
+  var LESSONS = window.LESSONS || [];
+  var LEARN_OUT = window.LEARN_OUT || {};
   var app = document.getElementById('app');
   var STORE = 'java-exams-v1';
 
@@ -56,8 +58,20 @@
     app.innerHTML = '';
     app.appendChild(el('section', { class: 'hero' }, [
       el('h1', { text: 'תרגול מבחנים – מבוא למדעי המחשב ושפת Java' }),
-      el('p', { html: 'חמישה מבחנים מלאים. בכל סעיף כותבים תשובה ב-Java בתיבה ולוחצים <b>בדוק</b>: הקוד מקומפל ומורץ בדפדפן מול סדרת בדיקות, ורואים בדיוק מה עבר ומה לא.' })
+      el('p', { html: 'לומדים את החומר, מתרגלים בתרגילים מדורגים, ואז פותרים מבחנים מלאים. בכל סעיף כותבים תשובה ב-Java בתיבה ולוחצים <b>בדוק</b>: הקוד מקומפל ומורץ בדפדפן מול סדרת בדיקות, ורואים בדיוק מה עבר ומה לא.' })
     ]));
+    if (LESSONS.length) {
+      app.appendChild(el('h2', { class: 'section-title', text: 'לימוד' }));
+      var lg = el('div', { class: 'cards' });
+      LESSONS.forEach(function (l) {
+        lg.appendChild(el('a', { class: 'card learn', href: '#/' + l.id }, [
+          el('h2', { text: l.title }),
+          el('p', { class: 'muted', text: l.subtitle }),
+          el('p', { class: 'stat', text: l.sections.length + ' נושאים' })
+        ]));
+      });
+      app.appendChild(lg);
+    }
     function card(exam) {
       var sc = examScore(exam);
       var pct = Math.round(100 * sc.got / sc.total);
@@ -134,6 +148,84 @@
     });
   }
 
+  // ---------- דף לימוד ----------
+  var RUN_TESTS = [['run', 'T.runOut(new Runnable() { public void run() { Main.main(new String[0]); } });']];
+  function renderLesson(lesson) {
+    document.title = lesson.title + ' – תרגול מבחני Java';
+    app.innerHTML = '';
+    app.appendChild(el('div', { class: 'exam-head' }, [
+      el('a', { class: 'back', href: '#', text: '→ לדף הראשי' }),
+      el('h1', { text: lesson.title }),
+      el('p', { class: 'muted', text: lesson.subtitle }),
+      el('p', { class: 'note', html: 'בכל דוגמה אפשר לשנות את הקוד וללחוץ <b>הרץ</b> כדי לראות מה יודפס. הפלט שמופיע מתחת לדוגמה הוא הפלט של הקוד המקורי.' })
+    ]));
+    var toc = el('nav', { class: 'toc', 'aria-label': 'נושאים' });
+    var ol = el('ol');
+    lesson.sections.forEach(function (sec) {
+      ol.appendChild(el('li', {}, [el('a', { href: '#/' + lesson.id + '/' + sec.id, text: sec.title })]));
+    });
+    toc.appendChild(el('h2', { text: 'נושאים' }));
+    toc.appendChild(ol);
+    app.appendChild(toc);
+    lesson.sections.forEach(function (sec, si) {
+      var section = el('section', { class: 'lesson', id: sec.id }, [el('h2', { text: (si + 1) + '. ' + sec.title })]);
+      sec.blocks.forEach(function (b, bi) {
+        if (typeof b === 'string') section.appendChild(el('div', { class: 'prose', html: b }));
+        else section.appendChild(renderExample(lesson.id + '-' + sec.id + '-' + bi, b.run));
+      });
+      app.appendChild(section);
+    });
+    var practice = EXAMS.filter(function (e) { return e.id === lesson.practice; })[0];
+    if (practice) {
+      app.appendChild(el('a', { class: 'card practice next', href: '#/' + practice.id }, [
+        el('h2', { text: 'לתרגול: ' + practice.title + ' ←' }),
+        el('p', { class: 'muted', text: practice.subtitle })
+      ]));
+    }
+  }
+
+  function renderExample(id, code) {
+    var box = el('div', { class: 'example' });
+    var editor = makeEditor(code, function () { }, 4);
+    var outPre = el('pre', { class: 'output', dir: 'ltr' });
+    var outLabel = el('div', { class: 'out-label', text: 'פלט:' });
+    function setOut(text, kind) { outPre.textContent = text; outPre.className = 'output' + (kind ? ' ' + kind : ''); }
+    if (LEARN_OUT[id] != null) setOut(LEARN_OUT[id]);
+    var btn = el('button', { class: 'btn primary', type: 'button', onclick: run }, ['▶ הרץ']);
+    var reset = el('button', { class: 'btn ghost', type: 'button', onclick: function () { editor.set(code); if (LEARN_OUT[id] != null) setOut(LEARN_OUT[id]); } }, ['איפוס']);
+    editor.addEventListener('run', run);
+    function run() {
+      var src = editor.ta.value;
+      var cls = Runner.newClassName();
+      var built = Harness.build({ tests: RUN_TESTS }, src, cls);
+      btn.disabled = true;
+      setOut(Runner.state === 'ready' ? 'מקמפל ומריץ…' : 'טוען את מנוע ה-Java (בפעם הראשונה זה לוקח כחצי דקה)…', 'busy');
+      Runner.run(built.source, cls).then(function (out) {
+        if (!out.compiled) {
+          var errs = Harness.mapErrors(out.log, built, cls + '.java');
+          var lines = src.split('\n');
+          setOut('שגיאת קומפילציה:\n' + (errs.length ? errs.slice(0, 6).map(function (e) {
+            return (e.line ? 'Line ' + e.line + ': ' : '') + e.msg + (e.line ? '\n    ' + (lines[e.line - 1] || '').trim() : '');
+          }).join('\n') : out.log.slice(0, 1500)), 'error');
+          return;
+        }
+        var res = Harness.parseResults(out.output);
+        if (/main/.test(src) && !/class\s+Main\b/.test(src)) { setOut('צריכה להיות מחלקה בשם Main עם השיטה main.', 'error'); return; }
+        var text = res.out.join('\n');
+        if (res.timeout) text += '\n(ההרצה נעצרה – ייתכן שיש לולאה אינסופית)';
+        res.tests.forEach(function (t) { if (!t.ok) text += '\n' + t.why; });
+        setOut(text || '(אין פלט)', /Exception|נזרקה חריגה/.test(text) ? 'error' : '');
+      }).catch(function (e) {
+        setOut('לא ניתן היה להריץ Java בדפדפן הזה: ' + (e && e.message || e), 'error');
+      }).then(function () { btn.disabled = false; });
+    }
+    box.appendChild(editor);
+    box.appendChild(el('div', { class: 'actions' }, [btn, reset]));
+    box.appendChild(outLabel);
+    box.appendChild(outPre);
+    return box;
+  }
+
   // ---------- עורך קוד פשוט ----------
   function makeEditor(initial, onChange, rows) {
     var wrap = el('div', { class: 'editor' });
@@ -199,7 +291,7 @@
       status.textContent = s === 'pass' ? '✓ נפתר' : s === 'fail' ? 'עוד לא' : '';
       updateScore();
     }
-    var inPractice = /^loops-/.test(p.id);
+    var inPractice = /^(loops|oop)-/.test(p.id);
     box.appendChild(el('h3', {}, [el('span', { text: inPractice ? 'המשימה' : p.title }), inPractice ? null : el('span', { class: 'pts', text: p.points + ' נק\'' }), status]));
     box.appendChild(el('div', { class: 'prose', html: p.html }));
     setStatus(r.status);
@@ -322,12 +414,16 @@
     var h = location.hash.replace(/^#\/?/, '');
     var parts = h.split('/');
     var exam = EXAMS.filter(function (e) { return e.id === parts[0]; })[0];
-    var tab = exam && exam.kind === 'practice' ? exam.id : 'home';
+    var lesson = LESSONS.filter(function (l) { return l.id === parts[0]; })[0];
+    var tab = lesson ? lesson.id : exam && exam.kind === 'practice' ? exam.id : 'home';
     Array.prototype.forEach.call(document.querySelectorAll('.tabs a'), function (t) {
       t.classList.toggle('active', t.getAttribute('data-tab') === tab);
     });
-    if (!exam) { renderHome(); window.scrollTo(0, 0); return; }
-    if (app.dataset.exam !== exam.id) { renderExam(exam); app.dataset.exam = exam.id; }
+    var act = document.querySelector('.tabs a.active');
+    if (act) { var nav = act.parentNode; nav.scrollLeft += act.getBoundingClientRect().left - nav.getBoundingClientRect().left - 16; }
+    if (!exam && !lesson) { renderHome(); window.scrollTo(0, 0); return; }
+    var cur = (exam || lesson).id;
+    if (app.dataset.exam !== cur) { if (exam) renderExam(exam); else renderLesson(lesson); app.dataset.exam = cur; }
     var target = parts[1] && document.getElementById(parts[1]);
     if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     else window.scrollTo(0, 0);

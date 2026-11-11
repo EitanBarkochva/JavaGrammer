@@ -47,6 +47,20 @@
     '    s = s.replace("\\r", "").trim();',
     '    return s.length() == 0 ? new String[0] : s.split("\\n");',
     '  }',
+    '  static void runOut(Runnable r) {',
+    '    java.io.PrintStream old = System.out;',
+    '    java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();',
+    '    String ex = null;',
+    '    try { System.setOut(new java.io.PrintStream(buf, true, "UTF-8")); r.run(); }',
+    '    catch (Throwable e) { ex = "Exception in thread \\"main\\" " + e; }',
+    '    finally { System.setOut(old); }',
+    '    String s;',
+    '    try { s = buf.toString("UTF-8"); } catch (Exception e2) { s = buf.toString(); }',
+    '    s = s.replace("\\r", "");',
+    '    if (ex != null) s = s + (s.endsWith("\\n") || s.length() == 0 ? "" : "\\n") + ex;',
+    '    if (s.endsWith("\\n")) s = s.substring(0, s.length() - 1);',
+    '    for (String l : s.split("\\n", -1)) line("@@OUT|" + l);',
+    '  }',
     '  static String dash(String s) { return s == null ? null : s.replace("\\u2013", "-").replace("\\u2014", "-"); }',
     '}'
   ].join('\n');
@@ -182,7 +196,9 @@
   // מפענח את פלט הבדיקות
   function parseResults(text) {
     var res = { tests: [], done: false, timeout: false, pass: 0, fail: 0 };
+    res.out = [];
     (text || '').split('\n').forEach(function (l) {
+      if (l.indexOf('@@OUT|') === 0) { res.out.push(l.slice(6).replace(/\r$/, '')); return; }
       l = l.trim();
       if (l.indexOf('@@PASS|') === 0) res.tests.push({ ok: true, label: l.slice(7) });
       else if (l.indexOf('@@FAIL|') === 0) {

@@ -81,7 +81,7 @@ window.cjFileBlob = async (p) => window.__files[p] ? new Blob([window.__files[p]
   const expect = (cond, msg) => { console.log((cond ? '✔ ' : '✘ ') + msg); if (!cond) failures++; };
 
   await page.goto(base);
-  expect((await page.locator('.card').count()) === 6, 'דף הבית מציג 5 מבחנים וכרטיס תרגול');
+  expect((await page.locator('.card').count()) === 9, 'דף הבית מציג 2 כרטיסי לימוד, 2 תרגול ו-5 מבחנים');
   await page.screenshot({ path: path.join(work, 'home.png') });
 
   // מבחן מועד א: פתרון שגוי ואז נכון
@@ -152,11 +152,28 @@ window.cjFileBlob = async (p) => window.__files[p] ? new Blob([window.__files[p]
   expect(/פתרתם 1 מתוך 10/.test(await page.locator('.score').innerText()), 'תרגיל 1 נפתר והמונה מתעדכן');
   await page.screenshot({ path: path.join(work, 'loops.png') });
 
+  // דף לימוד – הרצת דוגמה ששונתה
+  await page.click('.tabs a[data-tab="learn-loops"]');
+  await page.waitForSelector('.lesson .example textarea');
+  const firstOut = await page.locator('.example pre.output').first().innerText();
+  expect(/i = 1/.test(firstOut), 'הפלט הצפוי מוצג לפני הרצה');
+  await page.locator('.example textarea').first().fill('public class Main {\n  public static void main(String[] args) {\n    for (int i = 0; i < 3; i++) System.out.println("שלום " + i);\n  }\n}');
+  await page.locator('.example .btn.primary').first().click();
+  await page.waitForFunction(() => /שלום 2/.test(document.querySelector('.example pre.output').innerText), null, { timeout: 60000 });
+  expect(true, 'דוגמה ששונתה רצה ומציגה את הפלט החדש');
+  await page.click('.tabs a[data-tab="learn-oop"]');
+  await page.waitForSelector('#aliasing');
+  expect((await page.locator('.lesson').count()) >= 10, 'דף לימוד מחלקות מוצג');
+  await page.screenshot({ path: path.join(work, 'learn.png') });
+  await page.click('.tabs a[data-tab="oop"]');
+  await page.waitForSelector('#oop-10 textarea');
+  expect((await page.locator('.question').count()) === 10, 'בתרגול מחלקות יש 10 תרגילים');
+
   // מובייל – בלי גלילה אופקית
   const m = await browser.newPage({ viewport: { width: 375, height: 800 } });
   await m.route('https://cjrtnc.leaningtech.com/**', (route) => route.fulfill({ contentType: 'text/javascript', body: fakeCheerpJ }));
-  await m.goto(base + '#/m02');
-  await m.waitForSelector('.part');
+  await m.goto(base + '#/learn-oop');
+  await m.waitForSelector('.lesson');
   const overflow = await m.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow <= 0, 'אין גלילה אופקית במובייל (' + overflow + ')');
   await m.screenshot({ path: path.join(work, 'mobile.png') });

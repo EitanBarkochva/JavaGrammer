@@ -1,0 +1,27 @@
+// נוצר אוטומטית על ידי test/gen-outputs.js – הפלט הצפוי של כל דוגמה
+window.LEARN_OUT = {
+ "learn-loops-while-1": "i = 1\ni = 2\ni = 3\ni = 4\ni = 5\nאחרי הלולאה i = 6",
+ "learn-loops-while-3": "סכום הספרות: 13",
+ "learn-loops-for-1": "0 1 2 3 4 \n1 4 7 10 13 16 19 \n10 9 8 7 6 5 4 3 2 1 ",
+ "learn-loops-dowhile-1": "במספר 0 יש 1 ספרות",
+ "learn-loops-patterns-1": "סכום 1..10 = 55\nמספרים זוגיים: 5\nמצאנו 7? true",
+ "learn-loops-nested-1": "1\t2\t3\t4\t\n2\t4\t6\t8\t\n3\t6\t9\t12\t\n4\t8\t12\t16\t",
+ "learn-loops-arrays-1": "מספר הציונים: 4\nהציון הראשון: 85\nהציון האחרון: 64\nאחרי השינוי: 75\nערך ברירת מחדל של boolean: false",
+ "learn-loops-loop-array-1": "4 -2 9 7 0 \nסכום: 18\nמקסימום: 9\n0 7 9 -2 4 ",
+ "learn-loops-search-1": "indexOf 12: 2\nindexOf 7: -1\nממוין? true\nממוין? false",
+ "learn-loops-ref-1": "a[0] = 99\na[1] = 4\na[2] = 6, c[2] = -1\na == c? false",
+ "learn-loops-new-array-1": "3 8 2 ",
+ "learn-loops-2d-1": "3\t2\t5\t5\t\n6\t3\t4\t0\t\n4\t5\t-3\t2\t\nסכום שורה 1: 13\nסכום עמודה 2: 6",
+ "learn-oop-what-1": "Rex says: Woof!\nLassie says: Woof!\nLassie is 5",
+ "learn-oop-ctor-1": "שטח המלבן: 15\nשטח הריבוע: 16",
+ "learn-oop-methods-1": "2\n2\n10",
+ "learn-oop-tostring-1": "(3, 4)\nהנקודה היא (3, 4)",
+ "learn-oop-valid-1": "80\n50\n30\nהמקסימום: 100",
+ "learn-oop-refs-1": "p = (100, 2)\np == q ? true\np == r ? false",
+ "learn-oop-equals-1": "a == b ? false\na.equals(b) ? true\na.equals(c) ? false\ns1 == s2 ? false   s1.equals(s2) ? true",
+ "learn-oop-copy-1": "p = (1, 2), copy = (50, 2)",
+ "learn-oop-aliasing-1": "bad:  (999, 0)\ngood: (0, 0)\ngood: (0, 0)",
+ "learn-oop-has-a-1": "Mazda (150 HP) stronger than Tesla (300 HP)? false\nTesla (300 HP) stronger than Mazda (150 HP)? true",
+ "learn-oop-array-of-objects-1": "עוד אחד? false\nHelp  Imagine  Yesterday  (3 songs)\nהארוך ביותר: Imagine\nImagine  Yesterday  (2 songs)",
+ "learn-oop-tester-1": "Pass\nPass"
+};
