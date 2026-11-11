@@ -230,36 +230,49 @@ mostFrequent({9}) ==> 9</pre>`,
           ['שליליים', String.raw`T.eq("mostFrequent({-1, -2, -2, 0})", -2, mostFrequent(new int[]{-1, -2, -2, 0}));`]
         ]),
 
-      ex(9, 'קשה – רמת מבחן', 'השורה עם הסכום הגדול ביותר',
-        `<p>כתבו את השיטה <code>public static int rowWithMaxSum(int[][] a)</code> המקבלת מערך דו-ממדי של מספרים שלמים ומחזירה את <b>אינדקס השורה</b> שסכום איבריה הוא הגדול ביותר. אם יש כמה שורות כאלה, יוחזר האינדקס הראשון. ניתן להניח שיש לפחות שורה אחת. מומלץ לכתוב שיטת עזר <code>rowSum(int[][] a, int row)</code>.</p>
-<table class="grid"><tr><td>1</td><td>2</td><td>3</td></tr><tr><td class="hl">4</td><td class="hl">0</td><td class="hl">5</td></tr><tr><td>-1</td><td>9</td><td>-2</td></tr></table>
-<pre class="code">rowWithMaxSum(a) ==> 1    // סכומי השורות: 6, 9, 6</pre>`,
-        `public static int rowWithMaxSum(int[][] a) {
+      ex(9, 'קשה – רמת מבחן', 'חלון רצוף עם הסכום הגדול ביותר',
+        `<p>בחנות רושמים במערך את מספר המבקרים בכל יום. רוצים למצוא את <b>k הימים הרצופים</b> שבהם היו הכי הרבה מבקרים.</p>
+<p>כתבו את השיטה <code>public static int bestWindow(int[] a, int k)</code> המחזירה את האינדקס שבו מתחיל רצף של <code>k</code> איברים סמוכים שסכומם הגדול ביותר. אם יש כמה רצפים כאלה, יוחזר האינדקס של הראשון. אם <code>k</code> קטן מ-1 או גדול מאורך המערך, יוחזר <code>-1</code>.</p>
+<pre class="code">a = {4, 2, 7, 1, 8, 3, 0}
+bestWindow(a, 2) ==> 4    // 8+3=11 הוא הסכום הגדול ביותר של 2 ימים רצופים
+bestWindow(a, 3) ==> 2    // 7+1+8=16
+bestWindow(a, 8) ==> -1   // אין 8 ימים במערך</pre>
+<p class="note">רמז: כתבו שיטת עזר <code>windowSum(int[] a, int start, int k)</code> שמחשבת סכום של רצף אחד, ובדקו בעזרתה כל נקודת התחלה אפשרית. שימו לב לנקודת ההתחלה האחרונה, כדי לא לחרוג מהמערך.</p>`,
+        `public static int bestWindow(int[] a, int k) {
 
 }`,
-        `public static int rowSum(int[][] a, int row) {
+        `public static int windowSum(int[] a, int start, int k) {
     int s = 0;
-    for (int j = 0; j < a[row].length; j++) {
-        s += a[row][j];
+    for (int i = start; i < start + k; i++) {
+        s += a[i];
     }
     return s;
 }
 
-public static int rowWithMaxSum(int[][] a) {
+public static int bestWindow(int[] a, int k) {
+    if (k < 1 || k > a.length) {
+        return -1;
+    }
     int best = 0;
-    for (int i = 1; i < a.length; i++) {
-        if (rowSum(a, i) > rowSum(a, best)) {
-            best = i;
+    int bestSum = windowSum(a, 0, k);
+    for (int start = 1; start <= a.length - k; start++) {
+        int sum = windowSum(a, start, k);
+        if (sum > bestSum) {
+            bestSum = sum;
+            best = start;
         }
     }
     return best;
 }`,
         [
-          ['דוגמה', String.raw`T.eq("המערך מהדוגמה", 1, rowWithMaxSum(new int[][]{{1, 2, 3}, {4, 0, 5}, {-1, 9, -2}}));`],
-          ['שוויון – הראשונה', String.raw`T.eq("{{5, 5}, {1, 9}, {2, 2}}", 0, rowWithMaxSum(new int[][]{{5, 5}, {1, 9}, {2, 2}}));`],
-          ['השורה האחרונה', String.raw`T.eq("{{1}, {2}, {3}}", 2, rowWithMaxSum(new int[][]{{1}, {2}, {3}}));`],
-          ['סכומים שליליים', String.raw`T.eq("{{-5, -5}, {-1, -2}}", 1, rowWithMaxSum(new int[][]{{-5, -5}, {-1, -2}}));`],
-          ['שורות באורכים שונים', String.raw`T.eq("{{1, 1, 1, 1}, {10}, {2, 3}}", 1, rowWithMaxSum(new int[][]{{1, 1, 1, 1}, {10}, {2, 3}}));`]
+          ['k = 2', String.raw`T.eq("bestWindow({4, 2, 7, 1, 8, 3, 0}, 2)", 4, bestWindow(new int[]{4, 2, 7, 1, 8, 3, 0}, 2));`],
+          ['k = 3', String.raw`T.eq("bestWindow({4, 2, 7, 1, 8, 3, 0}, 3)", 2, bestWindow(new int[]{4, 2, 7, 1, 8, 3, 0}, 3));`],
+          ['שוויון – הראשון', String.raw`T.eq("bestWindow({5, 1, 5, 1, 5}, 2)", 0, bestWindow(new int[]{5, 1, 5, 1, 5}, 2));`],
+          ['החלון בסוף המערך', String.raw`T.eq("bestWindow({1, 2, 3, 9, 9}, 2)", 3, bestWindow(new int[]{1, 2, 3, 9, 9}, 2));`],
+          ['k שווה לאורך המערך', String.raw`T.eq("bestWindow({3, 1, 2}, 3)", 0, bestWindow(new int[]{3, 1, 2}, 3));`],
+          ['ערכים שליליים', String.raw`T.eq("bestWindow({-5, -1, -2, -8}, 2)", 1, bestWindow(new int[]{-5, -1, -2, -8}, 2));`],
+          ['k לא חוקי', String.raw`T.eq("bestWindow({1, 2}, 3)", -1, bestWindow(new int[]{1, 2}, 3));
+            T.eq("bestWindow({1, 2}, 0)", -1, bestWindow(new int[]{1, 2}, 0));`]
         ]),
 
       ex(10, 'קשה – רמת מבחן', 'דחיסת רצפים במערך',
