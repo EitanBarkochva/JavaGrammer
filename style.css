@@ -57,6 +57,16 @@ pre.code b { color: var(--accent); }
 }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 700; }
 .logo { font-family: var(--mono); background: var(--accent); color: var(--accent-ink); border-radius: 8px; padding: 2px 8px; font-size: 14px; }
+.tabs { display: flex; gap: 4px; margin-inline-end: auto; margin-inline-start: 18px; }
+.tabs a { text-decoration: none; color: var(--muted); font-size: 15px; padding: 5px 12px; border-radius: 8px; white-space: nowrap; }
+.tabs a:hover { color: var(--text); background: var(--accent-soft); }
+.tabs a.active { color: var(--accent); background: var(--accent-soft); font-weight: 500; }
+.section-title { font-size: 19px; margin: 26px 0 10px; }
+.card.practice { border-color: var(--accent); background: linear-gradient(135deg, var(--accent-soft), var(--surface) 70%); }
+.level { font-size: 13px; font-weight: 500; border-radius: 999px; padding: 1px 12px; white-space: nowrap; }
+.lv-easy { background: var(--good-soft); color: var(--good); }
+.lv-mid { background: var(--accent-soft); color: var(--accent); }
+.lv-hard { background: var(--bad-soft); color: var(--bad); }
 .engine { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); white-space: nowrap; }
 .engine .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--gutter); }
 .engine.loading .dot { background: var(--warn); animation: pulse 1s infinite alternate; }
@@ -163,6 +173,7 @@ table.grid td.hl { background: var(--hl); font-weight: 700; }
 .result.bad .result-title { color: var(--bad); }
 .checks { list-style: none; padding: 0; margin: 8px 0 0; }
 .checks li { padding: 3px 0; }
+.checks .lbl { unicode-bidi: plaintext; }
 .checks .mark { display: inline-block; width: 20px; font-weight: 700; }
 .checks li.ok .mark { color: var(--good); }
 .checks li.bad .mark { color: var(--bad); }
@@ -177,6 +188,9 @@ table.grid td.hl { background: var(--hl); font-weight: 700; }
 @media (max-width: 640px) {
   .top { padding: 8px 16px; }
   .engine .label { display: none; }
+  .tabs { margin-inline-start: 8px; }
+  .tabs a { padding: 4px 8px; font-size: 14px; }
+  .brand > span:last-child { display: none; }
   main { padding: 16px 16px 32px; }
   .foot { padding: 0 16px 32px; }
   .hero h1 { font-size: 24px; }

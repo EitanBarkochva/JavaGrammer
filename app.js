@@ -58,17 +58,27 @@
       el('h1', { text: 'תרגול מבחנים – מבוא למדעי המחשב ושפת Java' }),
       el('p', { html: 'חמישה מבחנים מלאים. בכל סעיף כותבים תשובה ב-Java בתיבה ולוחצים <b>בדוק</b>: הקוד מקומפל ומורץ בדפדפן מול סדרת בדיקות, ורואים בדיוק מה עבר ומה לא.' })
     ]));
-    var grid = el('div', { class: 'cards' });
-    EXAMS.forEach(function (exam) {
+    function card(exam) {
       var sc = examScore(exam);
       var pct = Math.round(100 * sc.got / sc.total);
-      grid.appendChild(el('a', { class: 'card', href: '#/' + exam.id }, [
+      return el('a', { class: 'card' + (exam.kind === 'practice' ? ' practice' : ''), href: '#/' + exam.id }, [
         el('h2', { text: exam.title }),
         el('p', { class: 'muted', text: exam.subtitle }),
         el('div', { class: 'meter', role: 'img', 'aria-label': 'התקדמות ' + pct + '%' }, [el('span', { style: 'width:' + pct + '%' })]),
-        el('p', { class: 'stat', text: sc.done + ' מתוך ' + sc.count + ' סעיפים · ' + sc.got + ' מתוך ' + sc.total + ' נקודות' })
-      ]));
-    });
+        el('p', { class: 'stat', text: sc.done + ' מתוך ' + sc.count + (exam.kind === 'practice' ? ' תרגילים' : ' סעיפים · ' + sc.got + ' מתוך ' + sc.total + ' נקודות') })
+      ]);
+    }
+    var practice = EXAMS.filter(function (e) { return e.kind === 'practice'; });
+    var exams = EXAMS.filter(function (e) { return e.kind !== 'practice'; });
+    if (practice.length) {
+      app.appendChild(el('h2', { class: 'section-title', text: 'תרגול' }));
+      var pg = el('div', { class: 'cards' });
+      practice.forEach(function (e) { pg.appendChild(card(e)); });
+      app.appendChild(pg);
+    }
+    app.appendChild(el('h2', { class: 'section-title', text: 'מבחנים' }));
+    var grid = el('div', { class: 'cards' });
+    exams.forEach(function (e) { grid.appendChild(card(e)); });
     app.appendChild(grid);
     app.appendChild(el('section', { class: 'how' }, [
       el('h2', { text: 'איך זה עובד' }),
@@ -91,27 +101,32 @@
     var scoreEl = el('div', { class: 'score' });
     function updateScore() {
       var s = examScore(exam);
-      scoreEl.innerHTML = '<b>' + s.got + '</b> / ' + s.total + ' נקודות · ' + s.done + ' מתוך ' + s.count + ' סעיפים';
+      scoreEl.innerHTML = exam.kind === 'practice'
+        ? 'פתרתם <b>' + s.done + '</b> מתוך ' + s.count + ' תרגילים'
+        : '<b>' + s.got + '</b> / ' + s.total + ' נקודות · ' + s.done + ' מתוך ' + s.count + ' סעיפים';
     }
     updateScore();
 
     app.appendChild(el('div', { class: 'exam-head' }, [
-      el('a', { class: 'back', href: '#', text: '→ כל המבחנים' }),
+      el('a', { class: 'back', href: '#', text: '→ לדף הראשי' }),
       el('h1', { text: exam.title }),
       el('p', { class: 'muted', text: exam.subtitle }),
       el('p', { text: exam.intro }),
       scoreEl
     ]));
 
-    var nav = el('nav', { class: 'qnav', 'aria-label': 'שאלות' });
+    var qLabel = exam.qLabel || 'שאלה';
+    var nav = el('nav', { class: 'qnav', 'aria-label': qLabel });
     exam.questions.forEach(function (q) {
-      nav.appendChild(el('a', { href: '#/' + exam.id + '/q' + q.num, text: 'שאלה ' + q.num }));
+      nav.appendChild(el('a', { href: '#/' + exam.id + '/q' + q.num, text: exam.kind === 'practice' ? String(q.num) : qLabel + ' ' + q.num }));
     });
     app.appendChild(nav);
 
     exam.questions.forEach(function (q) {
       var sec = el('section', { class: 'question', id: 'q' + q.num }, [
-        el('h2', {}, [el('span', { text: 'שאלה ' + q.num + ' – ' + q.title }), el('span', { class: 'pts', text: q.points + ' נקודות' })])
+        el('h2', {}, [el('span', { text: qLabel + ' ' + q.num + ' – ' + q.title }),
+          q.level ? el('span', { class: 'level lv-' + (q.level.indexOf('קשה') >= 0 ? 'hard' : q.level === 'קל' ? 'easy' : 'mid'), text: q.level })
+                  : el('span', { class: 'pts', text: q.points + ' נקודות' })])
       ]);
       if (q.intro) sec.appendChild(el('div', { class: 'prose', html: q.intro }));
       q.parts.forEach(function (p) { sec.appendChild(renderPart(p, updateScore)); });
@@ -184,7 +199,8 @@
       status.textContent = s === 'pass' ? '✓ נפתר' : s === 'fail' ? 'עוד לא' : '';
       updateScore();
     }
-    box.appendChild(el('h3', {}, [el('span', { text: p.title }), el('span', { class: 'pts', text: p.points + ' נק\'' }), status]));
+    var inPractice = /^loops-/.test(p.id);
+    box.appendChild(el('h3', {}, [el('span', { text: inPractice ? 'המשימה' : p.title }), inPractice ? null : el('span', { class: 'pts', text: p.points + ' נק\'' }), status]));
     box.appendChild(el('div', { class: 'prose', html: p.html }));
     setStatus(r.status);
 
@@ -233,7 +249,7 @@
         items.forEach(function (t) {
           ul.appendChild(el('li', { class: t.ok ? 'ok' : 'bad' }, [
             el('span', { class: 'mark', text: t.ok ? '✓' : '✗' }),
-            el('span', { class: 'lbl', text: t.label }),
+            el('span', { class: 'lbl', dir: 'auto', text: t.label }),
             t.why ? el('div', { class: 'why', dir: 'auto', text: t.why }) : null
           ]));
         });
@@ -306,6 +322,10 @@
     var h = location.hash.replace(/^#\/?/, '');
     var parts = h.split('/');
     var exam = EXAMS.filter(function (e) { return e.id === parts[0]; })[0];
+    var tab = exam && exam.kind === 'practice' ? exam.id : 'home';
+    Array.prototype.forEach.call(document.querySelectorAll('.tabs a'), function (t) {
+      t.classList.toggle('active', t.getAttribute('data-tab') === tab);
+    });
     if (!exam) { renderHome(); window.scrollTo(0, 0); return; }
     if (app.dataset.exam !== exam.id) { renderExam(exam); app.dataset.exam = exam.id; }
     var target = parts[1] && document.getElementById(parts[1]);

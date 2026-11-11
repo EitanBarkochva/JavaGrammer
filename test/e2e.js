@@ -81,7 +81,7 @@ window.cjFileBlob = async (p) => window.__files[p] ? new Blob([window.__files[p]
   const expect = (cond, msg) => { console.log((cond ? '✔ ' : '✘ ') + msg); if (!cond) failures++; };
 
   await page.goto(base);
-  expect((await page.locator('.card').count()) === 5, 'דף הבית מציג 5 מבחנים');
+  expect((await page.locator('.card').count()) === 6, 'דף הבית מציג 5 מבחנים וכרטיס תרגול');
   await page.screenshot({ path: path.join(work, 'home.png') });
 
   // מבחן מועד א: פתרון שגוי ואז נכון
@@ -141,6 +141,16 @@ window.cjFileBlob = async (p) => window.__files[p] ? new Blob([window.__files[p]
   const score = await page.locator('.score').innerText();
   expect(/^10 \/ 100/.test(score.trim()), 'הניקוד נשמר אחרי רענון: ' + score);
   await page.screenshot({ path: path.join(work, 'exam.png'), fullPage: false });
+
+  // כרטיסיית תרגול לולאות ומערכים
+  await page.click('.tabs a[data-tab="loops"]');
+  await page.waitForSelector('#loops-10 textarea');
+  expect((await page.locator('.question').count()) === 10, 'בכרטיסיית התרגול יש 10 תרגילים');
+  await page.locator('#loops-1 textarea').fill('public static int sum(int[] a) {\n  int s = 0;\n  for (int x : a) s += x;\n  return s;\n}');
+  await page.click('#loops-1 .btn.primary');
+  await page.waitForFunction(() => /כל הבדיקות עברו/.test(document.querySelector('#loops-1 .result').innerText), null, { timeout: 60000 });
+  expect(/פתרתם 1 מתוך 10/.test(await page.locator('.score').innerText()), 'תרגיל 1 נפתר והמונה מתעדכן');
+  await page.screenshot({ path: path.join(work, 'loops.png') });
 
   // מובייל – בלי גלילה אופקית
   const m = await browser.newPage({ viewport: { width: 375, height: 800 } });
