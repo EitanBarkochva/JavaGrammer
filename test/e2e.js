@@ -67,6 +67,54 @@ window.cheerpjRunMain = async (cls, cp, ...args) => {
 window.cjFileBlob = async (p) => window.__files[p] ? new Blob([window.__files[p]]) : null;
 `;
 
+
+// Firebase מדומה (בזיכרון של הדף) – מממש רק את מה ש-auth.js משתמש בו, כולל כלל המורים המאושרים
+const fakeApp = `export function initializeApp(c) { return { c }; }`;
+const fakeAuth = `
+const S = window.__fb = window.__fb || { users: {}, cur: null, cbs: [], docs: {}, teacherEmails: { 'teacher@school.org': true } };
+const fire = () => S.cbs.forEach((f) => f(S.cur));
+const err = (code) => { const e = new Error(code); e.code = code; return e; };
+export function getAuth() { return {}; }
+export function onAuthStateChanged(a, cb) { S.cbs.push(cb); setTimeout(() => cb(S.cur), 0); }
+export async function createUserWithEmailAndPassword(a, email, pass) {
+  email = email.toLowerCase();
+  if (S.users[email]) throw err('auth/email-already-in-use');
+  if (pass.length < 6) throw err('auth/weak-password');
+  const user = { uid: 'u' + Object.keys(S.users).length, email, async delete() { delete S.users[email]; S.cur = null; fire(); } };
+  S.users[email] = { pass, user };
+  S.cur = user; fire();
+  return { user };
+}
+export async function signInWithEmailAndPassword(a, email, pass) {
+  const u = S.users[email.toLowerCase()];
+  if (!u || u.pass !== pass) throw err('auth/invalid-credential');
+  S.cur = u.user; fire(); return { user: u.user };
+}
+export async function signOut() { S.cur = null; fire(); }
+export async function updateProfile() {}
+export async function sendPasswordResetEmail() {}
+`;
+const fakeStore = `
+const S = window.__fb = window.__fb || { users: {}, cur: null, cbs: [], docs: {}, teacherEmails: { 'teacher@school.org': true } };
+const err = (code) => { const e = new Error(code); e.code = code; return e; };
+export function getFirestore() { return {}; }
+export function doc(db, col, id) { return { col, id }; }
+export function collection(db, col) { return { col }; }
+export function where(f, op, v) { return { f, v }; }
+export function query(c, w) { return { col: c.col, w }; }
+export function serverTimestamp() { return { toDate: () => new Date() }; }
+export async function setDoc(ref, data) {
+  if (ref.col === 'users' && data.role === 'teacher' && !S.teacherEmails[S.cur.email]) throw err('permission-denied');
+  S.docs[ref.col + '/' + ref.id] = data;
+}
+export async function getDoc(ref) { const d = S.docs[ref.col + '/' + ref.id]; return { exists: () => !!d, data: () => d, id: ref.id }; }
+export async function getDocs(q) {
+  const out = Object.keys(S.docs).filter((k) => k.startsWith(q.col + '/') && S.docs[k][q.w.f] === q.w.v)
+    .map((k) => ({ id: k.split('/')[1], data: () => S.docs[k] }));
+  return { docs: out };
+}
+`;
+
 (async () => {
   await new Promise((r) => server.listen(0, r));
   const base = `http://127.0.0.1:${server.address().port}/`;
@@ -177,6 +225,70 @@ window.cjFileBlob = async (p) => window.__files[p] ? new Blob([window.__files[p]
   const overflow = await m.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow <= 0, 'אין גלילה אופקית במובייל (' + overflow + ')');
   await m.screenshot({ path: path.join(work, 'mobile.png') });
+
+
+  // ---------- הרשמה והתחברות (Firebase מדומה) ----------
+  const ap = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+  ap.on('pageerror', (e) => errors.push(e.message));
+  await ap.route('https://cjrtnc.leaningtech.com/**', (route) => route.fulfill({ contentType: 'text/javascript', body: fakeCheerpJ }));
+  await ap.route('https://fonts.googleapis.com/**', (route) => route.fulfill({ contentType: 'text/css', body: '' }));
+  await ap.route('https://www.gstatic.com/firebasejs/**/firebase-app.js', (r) => r.fulfill({ contentType: 'text/javascript', body: fakeApp }));
+  await ap.route('https://www.gstatic.com/firebasejs/**/firebase-auth.js', (r) => r.fulfill({ contentType: 'text/javascript', body: fakeAuth }));
+  await ap.route('https://www.gstatic.com/firebasejs/**/firebase-firestore.js', (r) => r.fulfill({ contentType: 'text/javascript', body: fakeStore }));
+  await ap.route('**/firebase-config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: 'window.FIREBASE_CONFIG = { apiKey: "x", projectId: "p" };' }));
+  await ap.goto(base + '#/login');
+  await ap.waitForSelector('.auth-form');
+  await ap.click('.auth-tabs button:nth-child(2)');
+  await ap.fill('.field:nth-of-type(1) input', 'נועה תלמידה');
+  await ap.fill('input[type=email]', 'noa@school.org');
+  await ap.fill('input[autocomplete=new-password] >> nth=0', 'secret1');
+  await ap.locator('input[type=password]').nth(1).fill('secret1');
+  await ap.click('.auth-form button[type=submit]');
+  await ap.waitForSelector('.userbox .role.student');
+  expect(/נועה/.test(await ap.locator('.userbox').innerText()), 'הרשמת תלמיד: השם וסוג המשתמש מוצגים בכותרת');
+  // התלמיד פותר תרגיל – ההתקדמות נשמרת ב-Firebase
+  await ap.goto(base + '#/loops');
+  await ap.waitForSelector('#loops-1 textarea');
+  await ap.locator('#loops-1 textarea').fill('public static int sum(int[] a) {\n  int s = 0;\n  for (int x : a) s += x;\n  return s;\n}');
+  await ap.click('#loops-1 .btn.primary');
+  await ap.waitForFunction(() => /כל הבדיקות עברו/.test(document.querySelector('#loops-1 .result').innerText), null, { timeout: 60000 });
+  await ap.waitForFunction(() => window.__fb.docs['progress/u0'], null, { timeout: 5000 });
+  expect(true, 'ההתקדמות של התלמיד נשמרה ב-Firestore');
+  await ap.click('.userbox button');
+  await ap.waitForSelector('.auth-form');
+  // מורה בלי אישור – נדחה
+  await ap.click('.auth-tabs button:nth-child(2)');
+  await ap.fill('.field:nth-of-type(1) input', 'מורה מזויף');
+  await ap.fill('input[type=email]', 'fake@school.org');
+  await ap.locator('input[type=password]').nth(0).fill('secret1');
+  await ap.locator('input[type=password]').nth(1).fill('secret1');
+  await ap.check('input[value=teacher]');
+  await ap.click('.auth-form button[type=submit]');
+  await ap.waitForSelector('.auth-msg.bad');
+  expect(/רק לאימייל שאושר מראש/.test(await ap.locator('.auth-msg').innerText()), 'הרשמה כמורה בלי אישור נדחית');
+  // מורה מאושר
+  await ap.fill('.field:nth-of-type(1) input', 'המורה דנה');
+  await ap.fill('input[type=email]', 'teacher@school.org');
+  await ap.click('.auth-form button[type=submit]');
+  await ap.waitForSelector('table.students', { timeout: 10000 });
+  const row = await ap.locator('table.students tbody tr').first().innerText();
+  expect(/נועה/.test(row) && /1\/10/.test(row), 'דף המורה מציג את התלמיד וההתקדמות שלו: ' + row.replace(/\s+/g, ' ').slice(0, 120));
+  await ap.screenshot({ path: path.join(work, 'teacher.png') });
+  await ap.click('.userbox button');
+  await ap.waitForSelector('.auth-form');
+  await ap.fill('input[type=email]', 'noa@school.org');
+  await ap.locator('input[type=password]').nth(0).fill('wrong!!');
+  await ap.click('.auth-form button[type=submit]');
+  await ap.waitForSelector('.auth-msg.bad');
+  expect(/שגויים/.test(await ap.locator('.auth-msg').innerText()), 'סיסמה שגויה מציגה הודעה בעברית');
+  await ap.locator('input[type=password]').nth(0).fill('secret1');
+  await ap.click('.auth-form button[type=submit]');
+  await ap.waitForSelector('.userbox .role.student');
+  expect(true, 'התחברות מחדש של התלמיד עובדת');
+  await ap.goto(base + '#/login');
+  await ap.click('.userbox button');
+  await ap.waitForSelector('.auth-form');
+  await ap.screenshot({ path: path.join(work, 'login.png') });
 
   expect(errors.length === 0, 'אין שגיאות JavaScript בדף ' + errors.join(' | '));
   console.log('screenshots in', work);

@@ -9,7 +9,27 @@
   // ---------- שמירת התקדמות ----------
   var store = {};
   try { store = JSON.parse(localStorage.getItem(STORE) || '{}') || {}; } catch (e) { store = {}; }
-  function save() { try { localStorage.setItem(STORE, JSON.stringify(store)); } catch (e) { } }
+  var syncTimer = null;
+  function save() {
+    try { localStorage.setItem(STORE, JSON.stringify(store)); } catch (e) { }
+    // משתמש מחובר – שומרים גם ב-Firebase (בהשהיה קצרה כדי לא לשמור בכל הקשה)
+    if (window.Auth && Auth.state.user && Auth.state.profile) {
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(function () { Auth.saveProgress(store).catch(function () { }); }, 1500);
+    }
+  }
+  // מיזוג התקדמות מהענן: סטטוס "נפתר" נשמר מכל צד, קוד מקומי גובר על קוד מהענן
+  function mergeProgress(remote) {
+    if (!remote) return false;
+    var changed = false;
+    Object.keys(remote).forEach(function (id) {
+      var r = remote[id] || {}, l = store[id] || (store[id] = {});
+      if (l.code == null && r.code != null) { l.code = r.code; changed = true; }
+      if (r.status === 'pass' && l.status !== 'pass') { l.status = 'pass'; changed = true; }
+      else if (!l.status && r.status) { l.status = r.status; changed = true; }
+    });
+    return changed;
+  }
   function rec(id) { return store[id] || (store[id] = {}); }
 
   // ---------- עזרים ----------
@@ -51,6 +71,172 @@
     }[s] || s;
     if (msg) engine.title = msg;
   });
+
+  // ---------- משתמשים ----------
+  var userbox = document.getElementById('userbox');
+  var lastUid = null;
+  function roleName(r) { return r === 'teacher' ? 'מורה' : 'תלמיד'; }
+  function renderUserbox() {
+    var st = window.Auth && Auth.state;
+    userbox.innerHTML = '';
+    if (!st || !st.ready) return;
+    if (st.user && st.profile) {
+      var kids = [el('span', { class: 'who', text: (st.profile.name || st.user.email) }), el('span', { class: 'role ' + st.profile.role, text: roleName(st.profile.role) })];
+      if (st.profile.role === 'teacher') kids.push(el('a', { class: 'btn small', href: '#/teacher', text: 'דף מורה' }));
+      kids.push(el('button', { class: 'btn small ghost', type: 'button', onclick: function () { Auth.signOut(); location.hash = '#/login'; } }, ['התנתקות']));
+      kids.forEach(function (k) { userbox.appendChild(k); });
+    } else {
+      userbox.appendChild(el('a', { class: 'btn small primary', href: '#/login', text: 'התחברות / הרשמה' }));
+    }
+  }
+  window.addEventListener('authchange', function () {
+    var st = Auth.state;
+    renderUserbox();
+    var uid = st.user && st.profile ? st.user.uid : null;
+    if (uid && uid !== lastUid) {
+      lastUid = uid;
+      Auth.loadProgress().then(function (remote) {
+        mergeProgress(remote);
+        save();
+        if (location.hash.indexOf('#/login') === 0) location.hash = st.profile.role === 'teacher' ? '#/teacher' : '#';
+        else { app.dataset.exam = ''; route(); }
+      }).catch(function () { });
+    } else if (!uid) {
+      lastUid = null;
+    }
+    var h = location.hash.replace(/^#\/?/, '').split('/')[0];
+    // דף ההתחברות מצויר מחדש רק אם הטופס עוד לא מוצג (כדי לא למחוק הודעת שגיאה)
+    if (h === 'teacher' || (h === 'login' && !uid && !app.querySelector('.auth-form'))) { app.dataset.exam = ''; route(); }
+  });
+
+  function renderLogin() {
+    document.title = 'התחברות – תרגול מבחני Java';
+    app.innerHTML = '';
+    var st = window.Auth && Auth.state;
+    var wrap = el('section', { class: 'auth-card' });
+    app.appendChild(wrap);
+    if (!st || !st.ready) { wrap.appendChild(el('p', { class: 'muted', text: 'טוען…' })); return; }
+    if (!st.configured) {
+      wrap.appendChild(el('h1', { text: 'התחברות והרשמה' }));
+      wrap.appendChild(el('p', { class: 'note', html: 'ההרשמה עדיין לא מחוברת ל-Firebase. מנהל האתר צריך למלא את הקובץ <code>firebase-config.js</code>.' }));
+      return;
+    }
+    if (st.user && st.profile) {
+      wrap.appendChild(el('h1', { text: 'שלום ' + (st.profile.name || '') }));
+      wrap.appendChild(el('p', { text: 'את/ה מחובר/ת כ' + roleName(st.profile.role) + ' (' + st.profile.email + ').' }));
+      wrap.appendChild(el('a', { class: 'btn primary', href: st.profile.role === 'teacher' ? '#/teacher' : '#', text: st.profile.role === 'teacher' ? 'לדף המורה' : 'להתחיל לתרגל' }));
+      return;
+    }
+    var mode = 'signin';
+    var tabs = el('div', { class: 'auth-tabs', role: 'tablist' });
+    var tIn = el('button', { type: 'button', role: 'tab', onclick: function () { setMode('signin'); } }, ['התחברות']);
+    var tUp = el('button', { type: 'button', role: 'tab', onclick: function () { setMode('signup'); } }, ['הרשמה']);
+    tabs.appendChild(tIn); tabs.appendChild(tUp);
+    wrap.appendChild(el('h1', { text: 'התחברות והרשמה' }));
+    wrap.appendChild(tabs);
+
+    function field(label, attrs) {
+      var input = el('input', attrs);
+      var f = el('label', { class: 'field' }, [el('span', { text: label }), input]);
+      f.input = input;
+      return f;
+    }
+    var fName = field('שם מלא', { type: 'text', autocomplete: 'name', required: true });
+    var fEmail = field('אימייל', { type: 'email', autocomplete: 'email', dir: 'ltr', required: true });
+    var fPass = field('סיסמה', { type: 'password', autocomplete: 'current-password', dir: 'ltr', required: true, minlength: '6' });
+    var fPass2 = field('אימות סיסמה', { type: 'password', autocomplete: 'new-password', dir: 'ltr', minlength: '6' });
+    var roleBox = el('fieldset', { class: 'roles' }, [
+      el('legend', { text: 'אני' }),
+      el('label', {}, [el('input', { type: 'radio', name: 'role', value: 'student', checked: true }), el('span', { text: 'תלמיד/ה' })]),
+      el('label', {}, [el('input', { type: 'radio', name: 'role', value: 'teacher' }), el('span', { text: 'מורה' })])
+    ]);
+    var teacherNote = el('p', { class: 'hint-small', text: 'הרשמה כמורה אפשרית רק לאימייל שמנהל האתר אישר מראש.' });
+    var msg = el('p', { class: 'auth-msg', 'aria-live': 'polite' });
+    var submit = el('button', { class: 'btn primary wide', type: 'submit' }, ['התחברות']);
+    var forgot = el('button', { class: 'linkbtn', type: 'button', onclick: async function () {
+      var email = fEmail.input.value.trim();
+      if (!email) { showMsg('כתבו את האימייל ואז לחצו שוב על "שכחתי סיסמה".', true); return; }
+      try { await Auth.resetPassword(email); showMsg('נשלח מייל לאיפוס הסיסמה אל ' + email + '.'); }
+      catch (e) { showMsg(Auth.message(e), true); }
+    } }, ['שכחתי סיסמה']);
+    var form = el('form', { class: 'auth-form', novalidate: true }, [fName, fEmail, fPass, fPass2, roleBox, teacherNote, msg, submit, forgot]);
+    wrap.appendChild(form);
+
+    function showMsg(t, bad) { msg.textContent = t; msg.className = 'auth-msg' + (bad ? ' bad' : ' good'); }
+    function setMode(m) {
+      mode = m;
+      var up = m === 'signup';
+      tIn.className = up ? '' : 'active'; tUp.className = up ? 'active' : '';
+      tIn.setAttribute('aria-selected', String(!up)); tUp.setAttribute('aria-selected', String(up));
+      fName.hidden = !up; fPass2.hidden = !up; roleBox.hidden = !up; teacherNote.hidden = !up; forgot.hidden = up;
+      fPass.input.setAttribute('autocomplete', up ? 'new-password' : 'current-password');
+      submit.textContent = up ? 'הרשמה' : 'התחברות';
+      msg.textContent = '';
+    }
+    setMode(mode);
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var email = fEmail.input.value.trim(), pass = fPass.input.value;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showMsg('כתובת האימייל לא תקינה.', true); return; }
+      if (pass.length < 6) { showMsg('הסיסמה צריכה להכיל לפחות 6 תווים.', true); return; }
+      submit.disabled = true;
+      try {
+        if (mode === 'signup') {
+          var name = fName.input.value.trim();
+          if (!name) { showMsg('כתבו את השם.', true); return; }
+          if (pass !== fPass2.input.value) { showMsg('הסיסמאות לא זהות.', true); return; }
+          var role = form.querySelector('input[name=role]:checked').value;
+          showMsg('יוצר משתמש…');
+          await Auth.signUp(name, email, pass, role);
+        } else {
+          showMsg('מתחבר…');
+          await Auth.signIn(email, pass);
+        }
+      } catch (err) {
+        showMsg(Auth.message(err), true);
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  }
+
+  function renderTeacher() {
+    document.title = 'דף מורה – תרגול מבחני Java';
+    app.innerHTML = '';
+    var st = window.Auth && Auth.state;
+    app.appendChild(el('div', { class: 'exam-head' }, [el('a', { class: 'back', href: '#', text: '→ לדף הראשי' }), el('h1', { text: 'דף מורה' })]));
+    if (!st || !st.ready) { app.appendChild(el('p', { class: 'muted', text: 'טוען…' })); return; }
+    if (!st.user || !st.profile || st.profile.role !== 'teacher') {
+      app.appendChild(el('p', { class: 'note', html: 'הדף הזה מיועד למורים. <a href="#/login">התחברו</a> עם משתמש מורה.' }));
+      return;
+    }
+    var info = el('p', { class: 'muted', text: 'טוען את רשימת התלמידים…' });
+    app.appendChild(info);
+    var sets = EXAMS;
+    Auth.listStudents().then(function (students) {
+      info.textContent = students.length ? students.length + ' תלמידים רשומים. המספרים הם סעיפים שנפתרו מתוך כלל הסעיפים.' : 'עדיין אין תלמידים רשומים.';
+      if (!students.length) return;
+      var head = el('tr', {}, [el('th', { text: 'תלמיד' })].concat(sets.map(function (x) { return el('th', { text: x.title }); })).concat([el('th', { text: 'עדכון אחרון' })]));
+      var body = el('tbody');
+      students.sort(function (a, b) { return (a.name || '').localeCompare(b.name || '', 'he'); });
+      students.forEach(function (s) {
+        var prog = s.progress || {};
+        var row = el('tr', {}, [el('td', {}, [el('div', { text: s.name || '' }), el('div', { class: 'muted small', dir: 'ltr', text: s.email || '' })])]);
+        sets.forEach(function (x) {
+          var parts = allParts(x), done = 0, pts = 0;
+          parts.forEach(function (p) { if (prog[p.id] && prog[p.id].status === 'pass') { done++; pts += p.points; } });
+          var cell = x.kind === 'practice' ? done + '/' + parts.length : pts + ' נק\' (' + done + '/' + parts.length + ')';
+          row.appendChild(el('td', { class: done ? '' : 'muted', text: cell }));
+        });
+        row.appendChild(el('td', { class: 'muted small', text: s.updatedAt ? s.updatedAt.toLocaleString('he-IL') : '—' }));
+        body.appendChild(row);
+      });
+      app.appendChild(el('div', { class: 'table-wrap' }, [el('table', { class: 'students' }, [el('thead', {}, [head]), body])]));
+    }).catch(function (e) {
+      info.textContent = 'טעינת התלמידים נכשלה: ' + Auth.message(e);
+    });
+  }
 
   // ---------- דף הבית ----------
   function renderHome() {
@@ -415,6 +601,12 @@
     var parts = h.split('/');
     var exam = EXAMS.filter(function (e) { return e.id === parts[0]; })[0];
     var lesson = LESSONS.filter(function (l) { return l.id === parts[0]; })[0];
+    if (parts[0] === 'login' || parts[0] === 'teacher') {
+      Array.prototype.forEach.call(document.querySelectorAll('.tabs a'), function (t) { t.classList.remove('active'); });
+      if (app.dataset.exam !== parts[0]) { if (parts[0] === 'login') renderLogin(); else renderTeacher(); app.dataset.exam = parts[0]; }
+      window.scrollTo(0, 0);
+      return;
+    }
     var tab = lesson ? lesson.id : exam && exam.kind === 'practice' ? exam.id : 'home';
     Array.prototype.forEach.call(document.querySelectorAll('.tabs a'), function (t) {
       t.classList.toggle('active', t.getAttribute('data-tab') === tab);

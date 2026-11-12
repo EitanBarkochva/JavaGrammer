@@ -65,6 +65,38 @@ pre.code b { color: var(--accent); }
 .tabs a { text-decoration: none; color: var(--muted); font-size: 15px; padding: 7px 12px; border-radius: 8px 8px 0 0; white-space: nowrap; border-bottom: 2px solid transparent; }
 .tabs a:hover { color: var(--text); background: var(--accent-soft); }
 .tabs a.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+.userbox { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.userbox .who { font-weight: 500; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.userbox .role { font-size: 12px; border-radius: 999px; padding: 1px 9px; background: var(--accent-soft); color: var(--accent); }
+.userbox .role.teacher { background: var(--good-soft); color: var(--good); }
+.btn.small { font-size: 13px; padding: 4px 12px; text-decoration: none; display: inline-block; }
+.btn.wide { width: 100%; padding: 9px; font-size: 16px; }
+.auth-card { max-width: 420px; margin: 20px auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px 26px; }
+.auth-card h1 { font-size: 24px; margin: 0 0 14px; }
+.auth-tabs { display: flex; background: var(--bg); border-radius: 10px; padding: 4px; margin-bottom: 16px; }
+.auth-tabs button { flex: 1; font: inherit; border: 0; background: transparent; color: var(--muted); padding: 7px; border-radius: 8px; cursor: pointer; }
+.auth-tabs button.active { background: var(--surface); color: var(--text); font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.auth-form { display: flex; flex-direction: column; gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.field[hidden], .roles[hidden], .auth-form [hidden] { display: none; }
+.field input { font: inherit; font-size: 16px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--editor-bg); color: var(--text); }
+.field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.field input[dir="ltr"] { text-align: left; }
+.roles { border: 0; padding: 0; margin: 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.roles legend { font-size: 14px; padding: 0; margin-bottom: 6px; float: right; width: 100%; }
+.roles label { flex: 1; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; cursor: pointer; }
+.roles label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.hint-small { font-size: 12.5px; color: var(--muted); margin: -4px 0 0; }
+.auth-msg { margin: 0; font-size: 14px; min-height: 1em; }
+.auth-msg:empty { display: none; }
+.auth-msg.bad { color: var(--bad); }
+.auth-msg.good { color: var(--good); }
+.linkbtn { font: inherit; font-size: 14px; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; align-self: center; }
+.table-wrap { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table.students { border-collapse: collapse; width: 100%; font-size: 14px; }
+table.students th, table.students td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; vertical-align: top; }
+table.students th { background: var(--bg); font-weight: 500; position: sticky; top: 0; }
+.small { font-size: 12px; }
 .card.learn { border-color: var(--good); background: linear-gradient(135deg, var(--good-soft), var(--surface) 70%); }
 .toc { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 20px 10px; margin-top: 16px; }
 .toc h2 { font-size: 17px; margin: 10px 0 4px; }
@@ -208,6 +240,8 @@ table.grid td.hl { background: var(--hl); font-weight: 700; }
 @media (max-width: 640px) {
   .top { padding: 8px 16px; }
   .engine .label { display: none; }
+  .userbox .who, .userbox .role { display: none; }
+  .auth-card { padding: 18px 16px 22px; }
   .tabs { padding: 8px 16px 0; }
   .tabs a { padding: 6px 8px; font-size: 14px; }
   .toc ol { columns: 1; }

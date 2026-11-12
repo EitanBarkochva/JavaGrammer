@@ -1,0 +1,39 @@
+rules_version = '2';
+// כללי האבטחה של Firestore לאתר. להעתיק ל-Firebase Console → Firestore Database → Rules ולפרסם.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isTeacher() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    // פרופיל משתמש: שם, אימייל וסוג (student / teacher)
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isTeacher());
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'createdAt'])
+        && request.resource.data.email == request.auth.token.email.lower()
+        && (request.resource.data.role == 'student'
+            || (request.resource.data.role == 'teacher'
+                && exists(/databases/$(database)/documents/teacherEmails/$(request.auth.token.email.lower()))));
+      // אי אפשר לשנות לעצמך את סוג המשתמש או את האימייל
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.email == resource.data.email;
+      allow delete: if false;
+    }
+
+    // ההתקדמות של כל משתמש באתר
+    match /progress/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isTeacher());
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // רשימת האימיילים שמותר להם להירשם כמורה.
+    // מוסיפים ידנית ב-Console: מסמך שה-ID שלו הוא האימייל באותיות קטנות (התוכן לא משנה).
+    match /teacherEmails/{email} {
+      allow read, write: if false;
+    }
+  }
+}

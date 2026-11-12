@@ -37,3 +37,13 @@ node test/e2e.js      # בדיקת הממשק
 ## פרסום ב-GitHub Pages
 
 Settings → Pages → Build and deployment → Source: **Deploy from a branch**, Branch: **main**, תיקייה **/ (root)**.
+
+## משתמשים (Firebase)
+
+הרשמה והתחברות עם אימייל וסיסמה, ושני סוגי משתמשים: תלמיד ומורה.
+
+- `firebase-config.js` – הגדרות הפרויקט ב-Firebase (`firebaseConfig`).
+- `auth.js` – התחברות, הרשמה, שמירת ההתקדמות ב-Firestore (`progress/{uid}`) ורשימת התלמידים למורה.
+- `firestore.rules` – כללי האבטחה. מעתיקים ל-Firestore → Rules ומפרסמים.
+- הרשמה כמורה אפשרית רק לאימייל שמופיע באוסף `teacherEmails` (מסמך שה-ID שלו הוא האימייל באותיות קטנות). את המסמכים מוסיפים ידנית ב-Firebase Console.
+- מורה רואה ב"דף מורה" את כל התלמידים ואת ההתקדמות שלהם בכל מבחן ותרגול.
