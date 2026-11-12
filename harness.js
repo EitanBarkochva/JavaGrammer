@@ -132,6 +132,7 @@
    * מחזיר { source, studentStart, studentLines }
    */
   function build(q, code, cls) {
+    if (q.prep) code = q.prep(code); // התאמה של קוד התלמיד לפני הבנייה (למשל main → studentMain)
     var imports = [];
     var raw = code.replace(/\r/g, '').replace(/^[ \t]*import\s+(static\s+)?[\w.]+(\.\*)?\s*;[ \t]*$/gm, function (m) {
       imports.push(m.trim()); return '';

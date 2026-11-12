@@ -140,8 +140,28 @@ export async function getDocs(q) {
   const expect = (cond, msg) => { console.log((cond ? '✔ ' : '✘ ') + msg); if (!cond) failures++; };
 
   await page.goto(base);
-  expect((await page.locator('.card').count()) === 9, 'דף הבית מציג 2 כרטיסי לימוד, 2 תרגול ו-5 מבחנים');
+  expect((await page.locator('.card').count()) === 12, 'דף הבית מציג 2 כרטיסי לימוד, 2 תרגול, 3 מבחנים קלים ו-5 מבחנים');
   await page.screenshot({ path: path.join(work, 'home.png') });
+  // תרגול מבחנים קלים
+  await page.click('.tabs a[data-tab=easy]');
+  await page.waitForSelector('.cards .card.easy');
+  expect((await page.locator('.card.easy').count()) === 3, 'בלשונית המבחנים הקלים יש 3 מבחנים');
+  await page.click('.card.easy >> nth=0');
+  await page.waitForSelector('#ea-4c textarea');
+  expect(await page.locator('.tabs a[data-tab=easy]').evaluate((e) => e.classList.contains('active')), 'הלשונית מסומנת גם בתוך מבחן קל');
+  await page.locator('#ea-4c textarea').fill('if (a[i] % 2 == 0) {');
+  await page.click('#ea-4c .btn.primary');
+  await page.waitForFunction(() => /כל הבדיקות עברו/.test(document.querySelector('#ea-4c .result').innerText), null, { timeout: 60000 });
+  expect(true, 'שאלת שינוי תנאי: תנאי נכון (גם עם if וסוגר) עובר');
+  await page.fill('#ea-4a textarea', '2 כי רק 7 ו-9 גדולים מ-5');
+  await page.click('#ea-4a .btn.primary');
+  expect(/נכון/.test(await page.locator('#ea-4a .result').innerText()), 'שאלת מעקב עם הסבר מתקבלת');
+  await page.locator('#ea-1c textarea').fill('public static void main(String[] args) {\n    Book b1 = new Book("Java", 150);\n    Book b2 = new Book("Science", 250);\n    System.out.println(b1.getTitle());\n    System.out.println(b2.isLong());\n}');
+  await page.click('#ea-1c .btn.primary');
+  await page.waitForFunction(() => /כל הבדיקות עברו/.test(document.querySelector('#ea-1c .result').innerText), null, { timeout: 60000 });
+  expect(true, 'תוכנית ראשית נבדקת לפי הפלט');
+  await page.screenshot({ path: path.join(work, 'easy.png') });
+  await page.goto(base + '#');
 
   // מבחן מועד א: פתרון שגוי ואז נכון
   await page.goto(base + '#/z2026');

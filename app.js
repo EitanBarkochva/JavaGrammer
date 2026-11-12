@@ -374,6 +374,31 @@
   }
 
   // ---------- דף הבית ----------
+  function card(exam) {
+    var sc = examScore(exam);
+    var pct = Math.round(100 * sc.got / sc.total);
+    return el('a', { class: 'card' + (exam.kind === 'practice' ? ' practice' : exam.kind === 'easy' ? ' easy' : ''), href: '#/' + exam.id }, [
+      el('h2', { text: exam.title }),
+      el('p', { class: 'muted', text: exam.subtitle }),
+      el('div', { class: 'meter', role: 'img', 'aria-label': 'התקדמות ' + pct + '%' }, [el('span', { style: 'width:' + pct + '%' })]),
+      el('p', { class: 'stat', text: sc.done + ' מתוך ' + sc.count + (exam.kind === 'practice' ? ' תרגילים' : ' סעיפים · ' + sc.got + ' מתוך ' + sc.total + ' נקודות') })
+    ]);
+  }
+
+  // ---------- תרגול מבחנים קלים ----------
+  function renderEasy() {
+    document.title = 'תרגול מבחנים קלים – תרגול מבחני Java';
+    app.innerHTML = '';
+    app.appendChild(el('div', { class: 'exam-head' }, [
+      el('a', { class: 'back', href: '#', text: '→ לדף הראשי' }),
+      el('h1', { text: 'תרגול מבחנים קלים' }),
+      el('p', { text: 'שלושה מבחנים מלאים באותו מבנה של מבחן 11203, ברמה קלה יותר: מחלקות ועצמים, מערך חד־ממדי, מערך עצמים וניתוח קוד. טוב להתחיל כאן לפני המבחנים האמיתיים.' })
+    ]));
+    var g = el('div', { class: 'cards' });
+    EXAMS.filter(function (e) { return e.kind === 'easy'; }).forEach(function (e) { g.appendChild(card(e)); });
+    app.appendChild(g);
+  }
+
   function renderHome() {
     document.title = 'תרגול מבחני Java';
     app.innerHTML = '';
@@ -393,23 +418,20 @@
       });
       app.appendChild(lg);
     }
-    function card(exam) {
-      var sc = examScore(exam);
-      var pct = Math.round(100 * sc.got / sc.total);
-      return el('a', { class: 'card' + (exam.kind === 'practice' ? ' practice' : ''), href: '#/' + exam.id }, [
-        el('h2', { text: exam.title }),
-        el('p', { class: 'muted', text: exam.subtitle }),
-        el('div', { class: 'meter', role: 'img', 'aria-label': 'התקדמות ' + pct + '%' }, [el('span', { style: 'width:' + pct + '%' })]),
-        el('p', { class: 'stat', text: sc.done + ' מתוך ' + sc.count + (exam.kind === 'practice' ? ' תרגילים' : ' סעיפים · ' + sc.got + ' מתוך ' + sc.total + ' נקודות') })
-      ]);
-    }
     var practice = EXAMS.filter(function (e) { return e.kind === 'practice'; });
-    var exams = EXAMS.filter(function (e) { return e.kind !== 'practice'; });
+    var easy = EXAMS.filter(function (e) { return e.kind === 'easy'; });
+    var exams = EXAMS.filter(function (e) { return !e.kind; });
     if (practice.length) {
       app.appendChild(el('h2', { class: 'section-title', text: 'תרגול' }));
       var pg = el('div', { class: 'cards' });
       practice.forEach(function (e) { pg.appendChild(card(e)); });
       app.appendChild(pg);
+    }
+    if (easy.length) {
+      app.appendChild(el('h2', { class: 'section-title', text: 'מבחנים קלים' }));
+      var eg = el('div', { class: 'cards' });
+      easy.forEach(function (e) { eg.appendChild(card(e)); });
+      app.appendChild(eg);
     }
     app.appendChild(el('h2', { class: 'section-title', text: 'מבחנים' }));
     var grid = el('div', { class: 'cards' });
@@ -443,7 +465,7 @@
     updateScore();
 
     app.appendChild(el('div', { class: 'exam-head' }, [
-      el('a', { class: 'back', href: '#', text: '→ לדף הראשי' }),
+      exam.kind === 'easy' ? el('a', { class: 'back', href: '#/easy', text: '→ לתרגול מבחנים קלים' }) : el('a', { class: 'back', href: '#', text: '→ לדף הראשי' }),
       el('h1', { text: exam.title }),
       el('p', { class: 'muted', text: exam.subtitle }),
       el('p', { text: exam.intro }),
@@ -758,12 +780,13 @@
       window.scrollTo(0, 0);
       return;
     }
-    var tab = lesson ? lesson.id : exam && exam.kind === 'practice' ? exam.id : 'home';
+    var tab = parts[0] === 'easy' || (exam && exam.kind === 'easy') ? 'easy' : lesson ? lesson.id : exam && exam.kind === 'practice' ? exam.id : 'home';
     Array.prototype.forEach.call(document.querySelectorAll('.tabs a'), function (t) {
       t.classList.toggle('active', t.getAttribute('data-tab') === tab);
     });
     var act = document.querySelector('.tabs a.active');
     if (act) { var nav = act.parentNode; nav.scrollLeft += act.getBoundingClientRect().left - nav.getBoundingClientRect().left - 16; }
+    if (parts[0] === 'easy') { if (app.dataset.exam !== 'easy') { renderEasy(); app.dataset.exam = 'easy'; } window.scrollTo(0, 0); return; }
     if (!exam && !lesson) { renderHome(); window.scrollTo(0, 0); return; }
     var cur = (exam || lesson).id;
     if (app.dataset.exam !== cur) { if (exam) renderExam(exam); else renderLesson(lesson); app.dataset.exam = cur; }
