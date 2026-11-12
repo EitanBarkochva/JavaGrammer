@@ -125,7 +125,10 @@
     }
     var h = location.hash.replace(/^#\/?/, '').split('/')[0];
     // דף ההתחברות מצויר מחדש רק אם הטופס עוד לא מוצג (כדי לא למחוק הודעת שגיאה)
-    if (h === 'teacher' || (h === 'login' && !uid && !app.querySelector('.auth-form'))) { app.dataset.exam = ''; route(); }
+    var needProfile = st.user && !st.profile;
+    if (h === 'teacher' || (h === 'login' && !uid && !app.querySelector(needProfile ? '.profile-form' : '.auth-form:not(.profile-form)'))) { app.dataset.exam = ''; route(); }
+    // משתמש Google חדש שעוד לא בחר תלמיד / מורה – שולחים אותו להשלמת ההרשמה
+    else if (needProfile && h !== 'login') location.hash = '#/login';
   });
 
   function renderLogin() {
@@ -146,12 +149,23 @@
       wrap.appendChild(el('a', { class: 'btn primary', href: st.profile.role === 'teacher' ? '#/teacher' : '#', text: st.profile.role === 'teacher' ? 'לדף המורה' : 'להתחיל לתרגל' }));
       return;
     }
+    if (st.user && !st.profile) { renderCompleteProfile(wrap, st); return; }
     var mode = 'signin';
     var tabs = el('div', { class: 'auth-tabs', role: 'tablist' });
     var tIn = el('button', { type: 'button', role: 'tab', onclick: function () { setMode('signin'); } }, ['התחברות']);
     var tUp = el('button', { type: 'button', role: 'tab', onclick: function () { setMode('signup'); } }, ['הרשמה']);
     tabs.appendChild(tIn); tabs.appendChild(tUp);
     wrap.appendChild(el('h1', { text: 'התחברות והרשמה' }));
+    var gMsg = el('p', { class: 'auth-msg', 'aria-live': 'polite' });
+    var gBtn = el('button', { class: 'btn google wide', type: 'button', onclick: async function () {
+      gBtn.disabled = true; gMsg.textContent = '';
+      try { await Auth.signInWithGoogle(); }
+      catch (e) { if (e && e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') { gMsg.textContent = Auth.message(e); gMsg.className = 'auth-msg bad'; } }
+      finally { gBtn.disabled = false; }
+    } }, [el('span', { class: 'g-logo', 'aria-hidden': 'true', html: GOOGLE_SVG }), el('span', { text: 'המשך עם Google' })]);
+    wrap.appendChild(gBtn);
+    wrap.appendChild(gMsg);
+    wrap.appendChild(el('div', { class: 'or', text: 'או עם אימייל וסיסמה' }));
     wrap.appendChild(tabs);
 
     function field(label, attrs) {
@@ -217,6 +231,37 @@
       } finally {
         submit.disabled = false;
       }
+    });
+  }
+
+  var GOOGLE_SVG = '<svg viewBox="0 0 48 48" width="18" height="18"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
+
+  // משתמש שנכנס עם Google בפעם הראשונה: שם וסוג משתמש
+  function renderCompleteProfile(wrap, st) {
+    wrap.appendChild(el('h1', { text: 'כמעט סיימנו' }));
+    wrap.appendChild(el('p', { class: 'muted', dir: 'auto', text: 'נכנסת עם ' + (st.user.email || '') + '. נשאר רק לבחור שם וסוג משתמש.' }));
+    var name = el('input', { type: 'text', autocomplete: 'name', required: true });
+    name.value = st.user.displayName || '';
+    var roleBox = el('fieldset', { class: 'roles' }, [
+      el('legend', { text: 'אני' }),
+      el('label', {}, [el('input', { type: 'radio', name: 'role', value: 'student', checked: true }), el('span', { text: 'תלמיד/ה' })]),
+      el('label', {}, [el('input', { type: 'radio', name: 'role', value: 'teacher' }), el('span', { text: 'מורה' })])
+    ]);
+    var msg = el('p', { class: 'auth-msg', 'aria-live': 'polite' });
+    var submit = el('button', { class: 'btn primary wide', type: 'submit' }, ['סיום הרשמה']);
+    var cancel = el('button', { class: 'linkbtn', type: 'button', onclick: function () { Auth.signOut(); } }, ['ביטול והתנתקות']);
+    var form = el('form', { class: 'auth-form profile-form', novalidate: true }, [
+      el('label', { class: 'field' }, [el('span', { text: 'שם מלא' }), name]), roleBox,
+      el('p', { class: 'hint-small', text: 'הרשמה כמורה אפשרית רק לאימייל שמנהל האתר אישר מראש.' }), msg, submit, cancel]);
+    wrap.appendChild(form);
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var n = name.value.trim();
+      if (!n) { msg.textContent = 'כתבו את השם.'; msg.className = 'auth-msg bad'; return; }
+      submit.disabled = true;
+      try { await Auth.completeProfile(n, form.querySelector('input[name=role]:checked').value); }
+      catch (err) { msg.textContent = Auth.message(err); msg.className = 'auth-msg bad'; }
+      finally { submit.disabled = false; }
     });
   }
 

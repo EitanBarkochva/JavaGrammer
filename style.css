@@ -263,3 +263,11 @@ table.log td.res.bad { color: var(--bad, #c62828); font-weight: 500; }
 table.log details summary { cursor: pointer; color: var(--accent, inherit); }
 table.log details pre.code { max-height: 320px; overflow: auto; margin-top: 6px; font-size: 12px; }
 .log-errors { margin: 6px 0; padding-inline-start: 18px; font-size: 13px; }
+
+/* התחברות עם Google */
+.btn.google { display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--surface); color: var(--text); border: 1px solid var(--line); }
+.btn.google:hover { background: var(--bg); }
+.g-logo { display: inline-flex; }
+.auth-card > .auth-msg { margin-top: 8px; }
+.or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; margin: 16px 0 12px; }
+.or::before, .or::after { content: ''; flex: 1; border-top: 1px solid var(--line); }

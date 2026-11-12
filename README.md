@@ -40,7 +40,7 @@ Settings → Pages → Build and deployment → Source: **Deploy from a branch**
 
 ## משתמשים (Firebase)
 
-הרשמה והתחברות עם אימייל וסיסמה, ושני סוגי משתמשים: תלמיד ומורה.
+הרשמה והתחברות עם אימייל וסיסמה או עם חשבון Google, ושני סוגי משתמשים: תלמיד ומורה. משתמש שנכנס עם Google בפעם הראשונה בוחר שם וסוג משתמש. (ב-Firebase: Authentication → Sign-in method → להפעיל Email/Password ו-Google.)
 
 - `firebase-config.js` – הגדרות הפרויקט ב-Firebase (`firebaseConfig`).
 - `auth.js` – התחברות, הרשמה, שמירת ההתקדמות ב-Firestore (`progress/{uid}`) ורשימת התלמידים למורה.

@@ -20,7 +20,11 @@ const ERRORS = {
   'auth/too-many-requests': 'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.',
   'auth/network-request-failed': 'אין חיבור לרשת.',
   'auth/unauthorized-domain': 'הדומיין של האתר לא מאושר ב-Firebase (Authentication → Settings → Authorized domains).',
-  'auth/operation-not-allowed': 'התחברות עם אימייל וסיסמה לא הופעלה ב-Firebase.',
+  'auth/operation-not-allowed': 'שיטת ההתחברות הזאת לא הופעלה ב-Firebase (Authentication → Sign-in method).',
+  'auth/popup-blocked': 'הדפדפן חסם את החלון של Google. אפשרו חלונות קופצים לאתר ונסו שוב.',
+  'auth/popup-closed-by-user': 'החלון של Google נסגר לפני שההתחברות הסתיימה.',
+  'auth/cancelled-popup-request': 'החלון של Google נסגר לפני שההתחברות הסתיימה.',
+  'auth/account-exists-with-different-credential': 'כבר קיים משתמש עם האימייל הזה. התחברו עם אימייל וסיסמה.',
   'permission-denied': 'אין הרשאה. הרשמה כמורה אפשרית רק לאימייל שאושר מראש על ידי מנהל האתר.'
 };
 function message(e) {
@@ -35,6 +39,8 @@ const api = {
   async signIn() { throw new Error('Firebase לא הוגדר'); },
   async signOut() {},
   async resetPassword() { throw new Error('Firebase לא הוגדר'); },
+  async signInWithGoogle() { throw new Error('Firebase לא הוגדר'); },
+  async completeProfile() { throw new Error('Firebase לא הוגדר'); },
   async saveProgress() {},
   async loadProgress() { return null; },
   async listStudents() { return []; },
@@ -87,6 +93,22 @@ async function start() {
         throw e;
       }
       return cred.user;
+    };
+    // התחברות / הרשמה עם Google. משתמש חדש עדיין בלי פרופיל – האתר יבקש ממנו לבחור תלמיד או מורה
+    api.signInWithGoogle = async function () {
+      const provider = new fa.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const cred = await fa.signInWithPopup(auth, provider);
+      return cred.user;
+    };
+    // השלמת הרשמה למשתמש שנכנס עם Google: שם וסוג משתמש
+    api.completeProfile = async function (name, role) {
+      const user = state.user;
+      if (!user) throw new Error('לא מחובר');
+      const email = (user.email || '').toLowerCase();
+      await fs.setDoc(fs.doc(db, 'users', user.uid), { name: name, email: email, role: role, createdAt: fs.serverTimestamp() });
+      state.profile = { name: name, email: email, role: role };
+      emit();
     };
     api.signIn = (email, password) => fa.signInWithEmailAndPassword(auth, email, password);
     api.signOut = () => fa.signOut(auth);

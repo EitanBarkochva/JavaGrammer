@@ -92,6 +92,12 @@ export async function signInWithEmailAndPassword(a, email, pass) {
 }
 export async function signOut() { S.cur = null; fire(); }
 export async function updateProfile() {}
+export class GoogleAuthProvider { setCustomParameters() {} }
+export async function signInWithPopup() {
+  const email = 'yoav@gmail.com';
+  if (!S.users[email]) S.users[email] = { pass: null, user: { uid: 'g' + Object.keys(S.users).length, email, displayName: 'יואב גוגל' } };
+  S.cur = S.users[email].user; fire(); return { user: S.cur };
+}
 export async function sendPasswordResetEmail() {}
 `;
 const fakeStore = `
@@ -276,7 +282,7 @@ export async function getDocs(q) {
   await ap.check('input[value=teacher]');
   await ap.click('.auth-form button[type=submit]');
   await ap.waitForSelector('.auth-msg.bad');
-  expect(/רק לאימייל שאושר מראש/.test(await ap.locator('.auth-msg').innerText()), 'הרשמה כמורה בלי אישור נדחית');
+  expect(/רק לאימייל שאושר מראש/.test(await ap.locator('.auth-form .auth-msg').innerText()), 'הרשמה כמורה בלי אישור נדחית');
   // מורה מאושר
   await ap.fill('.field:nth-of-type(1) input', 'המורה דנה');
   await ap.fill('input[type=email]', 'teacher@school.org');
@@ -303,11 +309,31 @@ export async function getDocs(q) {
   await ap.locator('input[type=password]').nth(0).fill('wrong!!');
   await ap.click('.auth-form button[type=submit]');
   await ap.waitForSelector('.auth-msg.bad');
-  expect(/שגויים/.test(await ap.locator('.auth-msg').innerText()), 'סיסמה שגויה מציגה הודעה בעברית');
+  expect(/שגויים/.test(await ap.locator('.auth-form .auth-msg').innerText()), 'סיסמה שגויה מציגה הודעה בעברית');
   await ap.locator('input[type=password]').nth(0).fill('secret1');
   await ap.click('.auth-form button[type=submit]');
   await ap.waitForSelector('.userbox .role.student');
   expect(true, 'התחברות מחדש של התלמיד עובדת');
+  // התחברות עם Google: משתמש חדש בוחר שם וסוג משתמש
+  await ap.click('.userbox button');
+  await ap.waitForSelector('.btn.google');
+  await ap.click('.btn.google');
+  await ap.waitForSelector('.profile-form');
+  expect((await ap.locator('.profile-form input[type=text]').inputValue()) === 'יואב גוגל', 'Google: השם מולא מראש בטופס השלמת ההרשמה');
+  await ap.screenshot({ path: path.join(work, 'google-profile.png') });
+  await ap.check('.profile-form input[value=teacher]');
+  await ap.click('.profile-form button[type=submit]');
+  await ap.waitForSelector('.profile-form .auth-msg.bad');
+  expect(/שאושר מראש/.test(await ap.locator('.profile-form .auth-msg').innerText()), 'Google: מורה בלי אישור נדחה ונשאר בטופס');
+  await ap.check('.profile-form input[value=student]');
+  await ap.click('.profile-form button[type=submit]');
+  await ap.waitForSelector('.userbox .role.student');
+  expect(/יואב/.test(await ap.locator('.userbox').innerText()), 'Google: ההרשמה כתלמיד הושלמה');
+  await ap.click('.userbox button');
+  await ap.waitForSelector('.btn.google');
+  await ap.click('.btn.google');
+  await ap.waitForSelector('.userbox .role.student');
+  expect(!(await ap.locator('.profile-form').count()), 'Google: כניסה חוזרת לא מבקשת שוב סוג משתמש');
   await ap.goto(base + '#/login');
   await ap.click('.userbox button');
   await ap.waitForSelector('.auth-form');
