@@ -38,6 +38,8 @@ const api = {
   async saveProgress() {},
   async loadProgress() { return null; },
   async listStudents() { return []; },
+  async logAttempt() {},
+  async listAttempts() { return []; },
   message
 };
 window.Auth = api;
@@ -112,6 +114,27 @@ async function start() {
         out.push({ uid: u.id, name: u.data().name, email: u.data().email, progress: data, updatedAt: p.exists() && p.data().updatedAt ? p.data().updatedAt.toDate() : null });
       }
       return out;
+    };
+
+    // יומן לחיצות: כל "בדוק" וכל "הצג פתרון" של משתמש מחובר נשמר כמסמך ב-attempts
+    api.logAttempt = async function (entry) {
+      if (!state.user || !state.profile) return;
+      const data = Object.assign({}, entry, { uid: state.user.uid, at: fs.serverTimestamp() });
+      await fs.addDoc(fs.collection(db, 'attempts'), data);
+    };
+    // למורה (או לתלמיד עצמו): כל הלחיצות של תלמיד אחד, מהחדשה לישנה
+    api.listAttempts = async function (uid) {
+      const snap = await fs.getDocs(fs.query(fs.collection(db, 'attempts'), fs.where('uid', '==', uid)));
+      const out = snap.docs.map((d) => {
+        const x = d.data();
+        return Object.assign({}, x, { id: d.id, at: x.at && x.at.toDate ? x.at.toDate() : null });
+      });
+      out.sort((a, b) => (b.at ? b.at.getTime() : 0) - (a.at ? a.at.getTime() : 0));
+      return out;
+    };
+    api.getUser = async function (uid) {
+      const snap = await fs.getDoc(fs.doc(db, 'users', uid));
+      return snap.exists() ? snap.data() : null;
     };
 
     fa.onAuthStateChanged(auth, async (user) => {

@@ -253,3 +253,13 @@ table.grid td.hl { background: var(--hl); font-weight: 700; }
   .hint { display: none; }
   .qnav { top: 45px; }
 }
+
+/* יומן תלמיד בדף המורה */
+.log-filter { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 12px; font-size: 14px; }
+.log-filter select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: inherit; }
+table.log td.wrap { white-space: normal; min-width: 180px; }
+table.log td.res.ok { color: var(--good, #1a7f37); font-weight: 500; }
+table.log td.res.bad { color: var(--bad, #c62828); font-weight: 500; }
+table.log details summary { cursor: pointer; color: var(--accent, inherit); }
+table.log details pre.code { max-height: 320px; overflow: auto; margin-top: 6px; font-size: 12px; }
+.log-errors { margin: 6px 0; padding-inline-start: 18px; font-size: 13px; }

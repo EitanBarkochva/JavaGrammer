@@ -102,10 +102,15 @@ export function doc(db, col, id) { return { col, id }; }
 export function collection(db, col) { return { col }; }
 export function where(f, op, v) { return { f, v }; }
 export function query(c, w) { return { col: c.col, w }; }
-export function serverTimestamp() { return { toDate: () => new Date() }; }
+export function serverTimestamp() { const t = new Date(Date.now() + (S.tick = (S.tick || 0) + 1)); return { toDate: () => t }; }
 export async function setDoc(ref, data) {
   if (ref.col === 'users' && data.role === 'teacher' && !S.teacherEmails[S.cur.email]) throw err('permission-denied');
   S.docs[ref.col + '/' + ref.id] = data;
+}
+let n = 0;
+export async function addDoc(c, data) {
+  if (c.col === 'attempts' && (!S.cur || data.uid !== S.cur.uid)) throw err('permission-denied');
+  S.docs[c.col + '/a' + (n++)] = data;
 }
 export async function getDoc(ref) { const d = S.docs[ref.col + '/' + ref.id]; return { exists: () => !!d, data: () => d, id: ref.id }; }
 export async function getDocs(q) {
@@ -249,6 +254,12 @@ export async function getDocs(q) {
   // התלמיד פותר תרגיל – ההתקדמות נשמרת ב-Firebase
   await ap.goto(base + '#/loops');
   await ap.waitForSelector('#loops-1 textarea');
+  // ניסיון שגוי (שגיאת קומפילציה) וצפייה בפתרון – נרשמים ביומן
+  await ap.locator('#loops-1 textarea').fill('public static int sum(int[] a) {\n  int s = 0\n  return s;\n}');
+  await ap.click('#loops-1 .btn.primary');
+  await ap.waitForFunction(() => /קומפילציה/.test(document.querySelector('#loops-1 .result').innerText), null, { timeout: 60000 });
+  await ap.click('#loops-1 .actions .btn:nth-child(2)');
+  await ap.click('#loops-1 .actions .btn:nth-child(2)');
   await ap.locator('#loops-1 textarea').fill('public static int sum(int[] a) {\n  int s = 0;\n  for (int x : a) s += x;\n  return s;\n}');
   await ap.click('#loops-1 .btn.primary');
   await ap.waitForFunction(() => /כל הבדיקות עברו/.test(document.querySelector('#loops-1 .result').innerText), null, { timeout: 60000 });
@@ -274,6 +285,18 @@ export async function getDocs(q) {
   const row = await ap.locator('table.students tbody tr').first().innerText();
   expect(/נועה/.test(row) && /1\/10/.test(row), 'דף המורה מציג את התלמיד וההתקדמות שלו: ' + row.replace(/\s+/g, ' ').slice(0, 120));
   await ap.screenshot({ path: path.join(work, 'teacher.png') });
+  // יומן הלחיצות של התלמיד
+  await ap.click('table.students tbody tr a');
+  await ap.waitForSelector('table.log tbody tr', { timeout: 10000 });
+  const logRows = await ap.locator('table.log tbody tr').allInnerTexts();
+  expect(logRows.length === 3, 'ביומן יש 3 לחיצות (קומפילציה, פתרון, נכון): ' + logRows.length);
+  expect(/נכון/.test(logRows[0]) && /פתרון/.test(logRows[1]) && /קומפילציה/.test(logRows[2]), 'סדר הלחיצות והתוצאות ביומן נכונים');
+  await ap.locator('table.log details summary').last().click();
+  expect(/Line 2/.test(await ap.locator('table.log').innerText()), 'השגיאות נשמרו עם מספר שורה');
+  await ap.check('.log-filter input[type=checkbox]');
+  expect((await ap.locator('table.log tbody tr').count()) === 1, 'סינון "רק לא נכונות" עובד');
+  expect(/נועה/.test(await ap.locator('.exam-head h1').innerText()), 'שם התלמיד בכותרת היומן');
+  await ap.screenshot({ path: path.join(work, 'student-log.png'), fullPage: true });
   await ap.click('.userbox button');
   await ap.waitForSelector('.auth-form');
   await ap.fill('input[type=email]', 'noa@school.org');

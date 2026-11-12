@@ -30,6 +30,15 @@ service cloud.firestore {
       allow write: if signedIn() && request.auth.uid == uid;
     }
 
+    // יומן לחיצות על "בדוק" ו"הצג פתרון". התלמיד רק מוסיף רשומות משלו, ואי אפשר לשנות או למחוק.
+    match /attempts/{id} {
+      allow read: if signedIn() && (resource.data.uid == request.auth.uid || isTeacher());
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && request.resource.data.kind in ['check', 'solution']
+        && request.resource.data.get('code', '').size() < 20000;
+      allow update, delete: if false;
+    }
+
     // רשימת האימיילים שמותר להם להירשם כמורה.
     // מוסיפים ידנית ב-Console: מסמך שה-ID שלו הוא האימייל באותיות קטנות (התוכן לא משנה).
     match /teacherEmails/{email} {

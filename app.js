@@ -32,6 +32,25 @@
   }
   function rec(id) { return store[id] || (store[id] = {}); }
 
+  // מפת סעיפים: מזהה סעיף → המבחן/התרגול, השאלה והסעיף
+  var PARTS = {};
+  EXAMS.forEach(function (x) { x.questions.forEach(function (q) { q.parts.forEach(function (p) { PARTS[p.id] = { exam: x, q: q, p: p }; }); }); });
+  function partLabel(id) {
+    var i = PARTS[id];
+    if (!i) return id;
+    if (i.exam.kind === 'practice') return i.exam.title + ' · תרגיל ' + i.q.num + ' – ' + i.q.title;
+    return i.exam.title + ' · ' + (i.exam.qLabel || 'שאלה') + ' ' + i.q.num + ' · ' + i.p.title;
+  }
+  // יומן לחיצות (רק למשתמש מחובר)
+  function logAttempt(entry) {
+    if (!window.Auth || !Auth.state.user || !Auth.state.profile) return;
+    var i = PARTS[entry.part];
+    entry.set = i ? i.exam.id : '';
+    if (entry.code != null) entry.code = String(entry.code).slice(0, 15000);
+    if (entry.errors) entry.errors = entry.errors.slice(0, 12).map(function (e) { return String(e).slice(0, 400); });
+    Auth.logAttempt(entry).catch(function () { });
+  }
+
   // ---------- עזרים ----------
   function el(tag, attrs, children) {
     var e = document.createElement(tag);
@@ -215,14 +234,14 @@
     app.appendChild(info);
     var sets = EXAMS;
     Auth.listStudents().then(function (students) {
-      info.textContent = students.length ? students.length + ' תלמידים רשומים. המספרים הם סעיפים שנפתרו מתוך כלל הסעיפים.' : 'עדיין אין תלמידים רשומים.';
+      info.textContent = students.length ? students.length + ' תלמידים רשומים. המספרים הם סעיפים שנפתרו מתוך כלל הסעיפים. לחצו על שם של תלמיד כדי לראות את כל הלחיצות שלו על "בדוק" ו"הצג פתרון".' : 'עדיין אין תלמידים רשומים.';
       if (!students.length) return;
       var head = el('tr', {}, [el('th', { text: 'תלמיד' })].concat(sets.map(function (x) { return el('th', { text: x.title }); })).concat([el('th', { text: 'עדכון אחרון' })]));
       var body = el('tbody');
       students.sort(function (a, b) { return (a.name || '').localeCompare(b.name || '', 'he'); });
       students.forEach(function (s) {
         var prog = s.progress || {};
-        var row = el('tr', {}, [el('td', {}, [el('div', { text: s.name || '' }), el('div', { class: 'muted small', dir: 'ltr', text: s.email || '' })])]);
+        var row = el('tr', {}, [el('td', {}, [el('a', { href: '#/teacher/' + s.uid, text: s.name || '(ללא שם)' }), el('div', { class: 'muted small', dir: 'ltr', text: s.email || '' })])]);
         sets.forEach(function (x) {
           var parts = allParts(x), done = 0, pts = 0;
           parts.forEach(function (p) { if (prog[p.id] && prog[p.id].status === 'pass') { done++; pts += p.points; } });
@@ -235,6 +254,77 @@
       app.appendChild(el('div', { class: 'table-wrap' }, [el('table', { class: 'students' }, [el('thead', {}, [head]), body])]));
     }).catch(function (e) {
       info.textContent = 'טעינת התלמידים נכשלה: ' + Auth.message(e);
+    });
+  }
+
+  // ---------- דף מורה: יומן הלחיצות של תלמיד ----------
+  function fmtTime(d) { return d ? d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '—'; }
+  function renderStudentLog(uid) {
+    document.title = 'יומן תלמיד – תרגול מבחני Java';
+    app.innerHTML = '';
+    var st = window.Auth && Auth.state;
+    var title = el('h1', { text: 'יומן תלמיד' });
+    var sub = el('p', { class: 'muted', dir: 'auto' });
+    app.appendChild(el('div', { class: 'exam-head' }, [el('a', { class: 'back', href: '#/teacher', text: '→ לדף המורה' }), title, sub]));
+    if (!st || !st.ready) { app.appendChild(el('p', { class: 'muted', text: 'טוען…' })); return; }
+    if (!st.user || !st.profile || st.profile.role !== 'teacher') {
+      app.appendChild(el('p', { class: 'note', html: 'הדף הזה מיועד למורים. <a href="#/login">התחברו</a> עם משתמש מורה.' }));
+      return;
+    }
+    var info = el('p', { class: 'muted', text: 'טוען…' });
+    app.appendChild(info);
+    Auth.getUser(uid).then(function (u) {
+      if (u) { title.textContent = 'יומן של ' + (u.name || ''); sub.textContent = u.email || ''; }
+    }).catch(function () { });
+    Auth.listAttempts(uid).then(function (list) {
+      if (!list.length) { info.textContent = 'עדיין אין לחיצות של התלמיד הזה. (נרשמות רק לחיצות של תלמיד מחובר.)'; return; }
+      var checks = list.filter(function (a) { return a.kind === 'check'; });
+      var good = checks.filter(function (a) { return a.ok; }).length;
+      var sols = list.length - checks.length;
+      info.textContent = checks.length + ' לחיצות על "בדוק" (' + good + ' נכונות, ' + (checks.length - good) + ' לא נכונות) · ' + sols + ' צפיות בפתרון.';
+
+      // סינון לפי מבחן / תרגול
+      var sel = el('select', { 'aria-label': 'סינון' }, [el('option', { value: '', text: 'כל המבחנים והתרגולים' })]);
+      EXAMS.forEach(function (x) { if (list.some(function (a) { return a.set === x.id; })) sel.appendChild(el('option', { value: x.id, text: x.title })); });
+      var onlyBad = el('input', { type: 'checkbox' });
+      app.appendChild(el('div', { class: 'log-filter' }, [sel, el('label', {}, [onlyBad, el('span', { text: ' רק תשובות לא נכונות' })])]));
+
+      var body = el('tbody');
+      var table = el('table', { class: 'students log' }, [el('thead', {}, [el('tr', {}, [
+        el('th', { text: 'מתי' }), el('th', { text: 'סעיף' }), el('th', { text: 'פעולה' }), el('th', { text: 'תוצאה' }), el('th', { text: 'שגיאות וקוד' })])]), body]);
+      app.appendChild(el('div', { class: 'table-wrap' }, [table]));
+      function draw() {
+        body.innerHTML = '';
+        list.forEach(function (a) {
+          if (sel.value && a.set !== sel.value) return;
+          if (onlyBad.checked && !(a.kind === 'check' && !a.ok)) return;
+          var res, cls;
+          if (a.kind === 'solution') { res = '—'; cls = 'muted'; }
+          else if (a.ok) { res = '✓ נכון' + (a.total ? ' (' + a.passed + '/' + a.total + ')' : ''); cls = 'ok'; }
+          else { res = (a.compile ? '✗ שגיאת קומפילציה' : '✗ לא נכון') + (a.total ? ' (' + a.passed + '/' + a.total + ')' : ''); cls = 'bad'; }
+          var det = null;
+          if (a.kind === 'check' && ((a.errors && a.errors.length) || a.code)) {
+            var inner = [el('summary', { text: a.errors && a.errors.length ? (a.errors.length === 1 ? 'שגיאה אחת' : a.errors.length + ' שגיאות') + ' וקוד' : 'הקוד' })];
+            if (a.errors && a.errors.length) inner.push(el('ul', { class: 'log-errors', dir: 'auto' }, a.errors.map(function (e) { return el('li', { text: e }); })));
+            if (a.code) inner.push(el('pre', { class: 'code', dir: 'ltr', text: a.code }));
+            det = el('details', {}, inner);
+          }
+          var link = PARTS[a.part] ? el('a', { href: '#/' + PARTS[a.part].exam.id + '/' + a.part, text: partLabel(a.part) }) : el('span', { text: a.part || '' });
+          body.appendChild(el('tr', {}, [
+            el('td', { class: 'muted small', text: fmtTime(a.at) }),
+            el('td', { class: 'wrap' }, [link]),
+            el('td', { text: a.kind === 'solution' ? 'הצג פתרון' : 'בדוק' }),
+            el('td', { class: 'res ' + cls, text: res }),
+            el('td', { class: 'wrap' }, [det])
+          ]));
+        });
+        if (!body.children.length) body.appendChild(el('tr', {}, [el('td', { colspan: '5', class: 'muted', text: 'אין רשומות שמתאימות לסינון.' })]));
+      }
+      sel.addEventListener('change', draw);
+      onlyBad.addEventListener('change', draw);
+      draw();
+    }).catch(function (e) {
+      info.textContent = 'טעינת היומן נכשלה: ' + Auth.message(e);
     });
   }
 
@@ -467,6 +557,10 @@
     return wrap;
   }
 
+  function failedOf(items) {
+    return (items || []).filter(function (t) { return !t.ok; }).map(function (t) { return t.label + (t.why ? ' – ' + t.why : ''); });
+  }
+
   function renderPart(p, updateScore) {
     var r = rec(p.id);
     var box = el('article', { class: 'part', id: p.id });
@@ -516,6 +610,7 @@
       solBox.appendChild(el('pre', { class: 'code', dir: 'ltr', text: p.solution }));
       solBox.hidden = false;
       btnSol.textContent = 'הסתר פתרון';
+      logAttempt({ kind: 'solution', part: p.id });
     }
 
     function show(kind, title, items, extra) {
@@ -541,6 +636,7 @@
         var res = p.check(input.value);
         show(res.ok ? 'good' : 'bad', res.msg);
         setStatus(res.ok ? 'pass' : 'fail');
+        logAttempt({ kind: 'check', part: p.id, ok: !!res.ok, code: input.value, errors: res.ok ? [] : [res.msg] });
         return;
       }
       var code = input.ta.value;
@@ -548,6 +644,8 @@
         var st = p.check(code);
         show(st.ok ? 'good' : 'bad', st.ok ? 'נראה טוב! השוו גם לפתרון לדוגמה.' : 'חסרים פרטים בתשובה:', st.tests);
         setStatus(st.ok ? 'pass' : 'fail');
+        logAttempt({ kind: 'check', part: p.id, ok: !!st.ok, code: code, errors: failedOf(st.tests),
+          passed: (st.tests || []).filter(function (t) { return t.ok; }).length, total: (st.tests || []).length });
         return;
       }
       var srcChecks = (p.sourceChecks || []).map(function (sc) {
@@ -574,6 +672,8 @@
           if (!errs.length) list.appendChild(el('li', { text: out.log.slice(0, 1500) || 'שגיאה לא ידועה' }));
           show('bad', 'הקוד לא עובר קומפילציה. תקנו את השגיאות ונסו שוב:', null, list);
           setStatus('fail');
+          logAttempt({ kind: 'check', part: p.id, ok: false, compile: true, code: code,
+            errors: errs.length ? errs.map(function (er) { return (er.line ? 'Line ' + er.line + ': ' : '') + er.msg; }) : [out.log.slice(0, 400)] });
           return;
         }
         var res = Harness.parseResults(out.output);
@@ -582,12 +682,14 @@
         if (!res.done && !res.tests.length) {
           show('bad', 'ההרצה לא החזירה תוצאות. פלט:', null, el('pre', { class: 'code', dir: 'ltr', text: (out.output || '').slice(0, 2000) }));
           setStatus('fail');
+          logAttempt({ kind: 'check', part: p.id, ok: false, code: code, errors: ['ההרצה לא החזירה תוצאות: ' + (out.output || '').slice(0, 300)] });
           return;
         }
         var passed = items.filter(function (t) { return t.ok; }).length;
         var allOk = passed === items.length && items.length > 0;
         show(allOk ? 'good' : 'bad', allOk ? 'כל הבדיקות עברו! (' + passed + '/' + items.length + ')' : 'עברו ' + passed + ' מתוך ' + items.length + ' בדיקות:', items);
         setStatus(allOk ? 'pass' : 'fail');
+        logAttempt({ kind: 'check', part: p.id, ok: allOk, code: code, passed: passed, total: items.length, errors: failedOf(items) });
       }).catch(function (e) {
         show('bad', 'לא ניתן היה להריץ Java בדפדפן הזה (' + (e && e.message || e) + '). נסו לרענן, או השתמשו בדפדפן Chrome / Edge / Firefox עדכני. בינתיים אפשר להשוות לפתרון לדוגמה.');
       }).then(function () { btnCheck.disabled = false; });
@@ -603,7 +705,11 @@
     var lesson = LESSONS.filter(function (l) { return l.id === parts[0]; })[0];
     if (parts[0] === 'login' || parts[0] === 'teacher') {
       Array.prototype.forEach.call(document.querySelectorAll('.tabs a'), function (t) { t.classList.remove('active'); });
-      if (app.dataset.exam !== parts[0]) { if (parts[0] === 'login') renderLogin(); else renderTeacher(); app.dataset.exam = parts[0]; }
+      var key = parts[0] === 'teacher' && parts[1] ? 'teacher/' + parts[1] : parts[0];
+      if (app.dataset.exam !== key) {
+        if (parts[0] === 'login') renderLogin(); else if (parts[1]) renderStudentLog(parts[1]); else renderTeacher();
+        app.dataset.exam = key;
+      }
       window.scrollTo(0, 0);
       return;
     }
